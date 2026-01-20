@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { CommentsApiResponse, CommentThread } from "./lib/types/figma";
-import { ResultsView } from "./components";
+import { useState, useEffect } from "react";
+import { CommentsApiResponseWithAggregation, CommentThread, CommentAggregation } from "./lib/types/figma";
+import { ResultsView, SettingsMenu } from "./components";
+import { useTokenStorage } from "./lib/hooks/useTokenStorage";
 
 interface AnalysisResult {
   fileInfo: {
@@ -14,6 +15,7 @@ interface AnalysisResult {
   totalCount: number;
   resolvedCount: number;
   unresolvedCount: number;
+  aggregation?: CommentAggregation;
 }
 
 export default function Home() {
@@ -23,6 +25,16 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  const { savedToken, isLoaded, saveToken, clearToken } = useTokenStorage();
+
+  // Pre-fill access token from saved token when loaded
+  useEffect(() => {
+    if (isLoaded && savedToken && !accessToken) {
+      setAccessToken(savedToken);
+    }
+  }, [isLoaded, savedToken, accessToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,7 +56,7 @@ export default function Home() {
         }),
       });
 
-      const data: CommentsApiResponse = await response.json();
+      const data: CommentsApiResponseWithAggregation = await response.json();
 
       if (data.success && data.data) {
         setResult(data.data);
@@ -75,6 +87,7 @@ export default function Home() {
             totalCount={result.totalCount}
             resolvedCount={result.resolvedCount}
             unresolvedCount={result.unresolvedCount}
+            aggregation={result.aggregation}
             onBack={handleBack}
           />
         </div>
@@ -85,6 +98,47 @@ export default function Home() {
   // Show Input Screen
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 font-sans dark:from-zinc-950 dark:to-black">
+      {/* Settings Button - Fixed Position */}
+      <button
+        onClick={() => setIsSettingsOpen(true)}
+        className="fixed right-4 top-4 flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white/80 text-zinc-500 backdrop-blur-sm transition-all hover:bg-white hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+        title="설정"
+      >
+        <svg
+          className="h-5 w-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+          />
+        </svg>
+      </button>
+
+      {/* Settings Menu Modal */}
+      <SettingsMenu
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        savedToken={savedToken}
+        onSaveToken={(token) => {
+          saveToken(token);
+          setAccessToken(token);
+        }}
+        onClearToken={() => {
+          clearToken();
+          setAccessToken("");
+        }}
+      />
+
       <main className="flex w-full max-w-2xl flex-col items-center gap-8">
         {/* Logo / Icon */}
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
@@ -194,17 +248,37 @@ export default function Home() {
             </div>
 
             {/* Token Help Text */}
-            <p className="text-xs text-zinc-500 dark:text-zinc-500">
-              <a
-                href="https://www.figma.com/developers/api#access-tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-purple-600 hover:text-purple-700 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
-              >
-                피그마 설정 → Personal access tokens
-              </a>
-              에서 토큰을 발급받을 수 있습니다.
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                <a
+                  href="https://www.figma.com/developers/api#access-tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-600 hover:text-purple-700 hover:underline dark:text-purple-400 dark:hover:text-purple-300"
+                >
+                  피그마 설정 → Personal access tokens
+                </a>
+                에서 토큰을 발급받을 수 있습니다.
+              </p>
+              {savedToken && (
+                <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                  <svg
+                    className="h-3 w-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  저장됨
+                </span>
+              )}
+            </div>
 
             {/* Submit Button */}
             <button
