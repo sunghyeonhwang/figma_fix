@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CommentThread } from "../lib/types/figma";
 import { CommentCard } from "./CommentCard";
+import { DateRange, DateRangePicker } from "./DateRangePicker";
 
 interface CommentsListProps {
   comments: CommentThread[];
@@ -21,6 +22,10 @@ export function CommentsList({ comments }: CommentsListProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("newest");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>({
+    startDate: null,
+    endDate: null,
+  });
 
   // Filter and sort comments
   const filteredComments = useMemo(() => {
@@ -31,6 +36,27 @@ export function CommentsList({ comments }: CommentsListProps) {
       result = result.filter((c) => c.isResolved);
     } else if (filter === "unresolved") {
       result = result.filter((c) => !c.isResolved);
+    }
+
+    // Apply date range filter
+    if (dateRange.startDate || dateRange.endDate) {
+      result = result.filter((c) => {
+        const commentDate = new Date(c.createdAt);
+        commentDate.setHours(0, 0, 0, 0);
+
+        if (dateRange.startDate && dateRange.endDate) {
+          const start = new Date(dateRange.startDate);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(dateRange.endDate);
+          end.setHours(23, 59, 59, 999);
+          return commentDate >= start && commentDate <= end;
+        } else if (dateRange.startDate) {
+          const start = new Date(dateRange.startDate);
+          start.setHours(0, 0, 0, 0);
+          return commentDate >= start;
+        }
+        return true;
+      });
     }
 
     // Apply search
@@ -56,7 +82,7 @@ export function CommentsList({ comments }: CommentsListProps) {
     });
 
     return result;
-  }, [comments, filter, sort, searchQuery]);
+  }, [comments, filter, sort, searchQuery, dateRange]);
 
   // Group comments by date
   const groupedComments = useMemo((): GroupedComments[] => {
@@ -173,26 +199,36 @@ export function CommentsList({ comments }: CommentsListProps) {
             </FilterButton>
           </div>
 
-          {/* Sort Dropdown */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              정렬:
-            </span>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortType)}
-              className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            >
-              <option value="newest">최신순</option>
-              <option value="oldest">오래된순</option>
-            </select>
+          {/* Date Range and Sort */}
+          <div className="flex items-center gap-3">
+            {/* Date Range Picker */}
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+              maxDate={new Date()}
+            />
+
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                정렬:
+              </span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortType)}
+                className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              >
+                <option value="newest">최신순</option>
+                <option value="oldest">오래된순</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Results Summary */}
-      {searchQuery && (
-        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+      {(searchQuery || dateRange.startDate || dateRange.endDate) && (
+        <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
           <svg
             className="h-4 w-4"
             fill="none"
@@ -207,7 +243,26 @@ export function CommentsList({ comments }: CommentsListProps) {
             />
           </svg>
           <span>
-            &quot;{searchQuery}&quot;에 대한 검색 결과 {filteredComments.length}개
+            {searchQuery && (
+              <>
+                &quot;{searchQuery}&quot;
+                {(dateRange.startDate || dateRange.endDate) && " · "}
+              </>
+            )}
+            {(dateRange.startDate || dateRange.endDate) && (
+              <>
+                {dateRange.startDate?.toLocaleDateString("ko-KR", {
+                  month: "short",
+                  day: "numeric",
+                })}{" "}
+                -{" "}
+                {dateRange.endDate?.toLocaleDateString("ko-KR", {
+                  month: "short",
+                  day: "numeric",
+                }) || "현재"}
+              </>
+            )}
+            {" 검색 결과 "}{filteredComments.length}개
           </span>
         </div>
       )}
@@ -258,8 +313,10 @@ export function CommentsList({ comments }: CommentsListProps) {
         <EmptyState
           filter={filter}
           searchQuery={searchQuery}
+          dateRange={dateRange}
           onClearSearch={() => setSearchQuery("")}
           onClearFilter={() => setFilter("all")}
+          onClearDateRange={() => setDateRange({ startDate: null, endDate: null })}
         />
       )}
     </div>
@@ -318,19 +375,28 @@ function FilterButton({
 interface EmptyStateProps {
   filter: FilterType;
   searchQuery: string;
+  dateRange: DateRange;
   onClearSearch: () => void;
   onClearFilter: () => void;
+  onClearDateRange: () => void;
 }
 
 function EmptyState({
   filter,
   searchQuery,
+  dateRange,
   onClearSearch,
   onClearFilter,
+  onClearDateRange,
 }: EmptyStateProps) {
+  const hasDateFilter = dateRange.startDate || dateRange.endDate;
+
   const getMessage = () => {
     if (searchQuery) {
       return `"${searchQuery}"에 대한 검색 결과가 없습니다.`;
+    }
+    if (hasDateFilter) {
+      return "선택한 기간에 댓글이 없습니다.";
     }
     switch (filter) {
       case "resolved":
@@ -362,14 +428,22 @@ function EmptyState({
       <p className="mb-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
         {getMessage()}
       </p>
-      {(searchQuery || filter !== "all") && (
-        <div className="flex gap-2">
+      {(searchQuery || filter !== "all" || hasDateFilter) && (
+        <div className="flex flex-wrap justify-center gap-2">
           {searchQuery && (
             <button
               onClick={onClearSearch}
               className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               검색어 지우기
+            </button>
+          )}
+          {hasDateFilter && (
+            <button
+              onClick={onClearDateRange}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              기간 초기화
             </button>
           )}
           {filter !== "all" && (
