@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CommentsApiResponse, CommentThread } from "./lib/types/figma";
+import { ResultsView } from "./components";
 
 interface AnalysisResult {
   fileInfo: {
@@ -53,21 +54,30 @@ export default function Home() {
     }
   };
 
-  const isValidFigmaLink = (link: string) => {
-    const regex = /^https?:\/\/(www\.)?figma\.com\/(file|design|proto|board)\/[a-zA-Z0-9]+/;
-    return regex.test(link);
+  const handleBack = () => {
+    setResult(null);
+    setError(null);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
+  // Show Results View when we have results
+  if (result) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black">
+        <div className="mx-auto flex justify-center">
+          <ResultsView
+            fileInfo={result.fileInfo}
+            comments={result.comments}
+            totalCount={result.totalCount}
+            resolvedCount={result.resolvedCount}
+            unresolvedCount={result.unresolvedCount}
+            onBack={handleBack}
+          />
+        </div>
+      </div>
+    );
+  }
 
+  // Show Input Screen
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 font-sans dark:from-zinc-950 dark:to-black">
       <main className="flex w-full max-w-2xl flex-col items-center gap-8">
@@ -178,7 +188,7 @@ export default function Home() {
         </form>
 
         {/* Helper Text */}
-        {!result && !error && (
+        {!error && (
           <p className="text-center text-sm text-zinc-500 dark:text-zinc-500">
             피그마 파일, 프로토타입, 또는 디자인 시스템 링크를 지원합니다
           </p>
@@ -190,127 +200,6 @@ export default function Home() {
             <p className="text-center text-sm text-red-600 dark:text-red-400">
               {error}
             </p>
-          </div>
-        )}
-
-        {/* Results */}
-        {result && (
-          <div className="w-full space-y-6">
-            {/* File Info */}
-            <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">
-                {result.fileInfo.name}
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                마지막 수정: {formatDate(result.fileInfo.lastModified)}
-              </p>
-
-              {/* Stats */}
-              <div className="mt-4 flex gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-purple-100 text-xs font-semibold text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
-                    {result.totalCount}
-                  </span>
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    전체 댓글
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-600 dark:bg-green-900/30 dark:text-green-400">
-                    {result.resolvedCount}
-                  </span>
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    해결됨
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-xs font-semibold text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-                    {result.unresolvedCount}
-                  </span>
-                  <span className="text-sm text-zinc-600 dark:text-zinc-400">
-                    미해결
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Comments List */}
-            {result.comments.length > 0 ? (
-              <div className="space-y-4">
-                <h3 className="text-base font-semibold text-zinc-900 dark:text-white">
-                  댓글 목록
-                </h3>
-                {result.comments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className={`rounded-xl border p-4 ${
-                      comment.isResolved
-                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
-                        : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
-                    }`}
-                  >
-                    {/* Comment Header */}
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={comment.author.avatarUrl}
-                        alt={comment.author.name}
-                        className="h-8 w-8 rounded-full"
-                      />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-zinc-900 dark:text-white">
-                          {comment.author.name}
-                        </p>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          {formatDate(comment.createdAt)}
-                        </p>
-                      </div>
-                      {comment.isResolved && (
-                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-400">
-                          해결됨
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Comment Message */}
-                    <p className="mt-3 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-                      {comment.message}
-                    </p>
-
-                    {/* Replies */}
-                    {comment.replies.length > 0 && (
-                      <div className="mt-4 space-y-3 border-l-2 border-zinc-200 pl-4 dark:border-zinc-700">
-                        {comment.replies.map((reply) => (
-                          <div key={reply.id}>
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={reply.author.avatarUrl}
-                                alt={reply.author.name}
-                                className="h-6 w-6 rounded-full"
-                              />
-                              <p className="text-xs font-medium text-zinc-900 dark:text-white">
-                                {reply.author.name}
-                              </p>
-                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                                {formatDate(reply.createdAt)}
-                              </p>
-                            </div>
-                            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-                              {reply.message}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-                <p className="text-zinc-500 dark:text-zinc-400">
-                  이 파일에는 댓글이 없습니다.
-                </p>
-              </div>
-            )}
           </div>
         )}
       </main>
