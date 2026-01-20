@@ -1,7 +1,8 @@
 "use client";
 
 import { ResultsView } from "../components";
-import { CommentThread } from "../lib/types/figma";
+import { CommentThread, CommentAggregation } from "../lib/types/figma";
+import { aggregateComments } from "../lib/utils/comment-aggregation";
 
 // Mock comments data with different dates
 const mockComments: CommentThread[] = [
@@ -108,6 +109,9 @@ export default function TestDemoPage() {
   const resolvedCount = mockComments.filter((c) => c.isResolved).length;
   const unresolvedCount = totalCount - resolvedCount;
 
+  // Generate aggregation data from mock comments
+  const aggregation: CommentAggregation = aggregateComments(mockComments);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black">
       <div className="mx-auto flex justify-center">
@@ -117,6 +121,7 @@ export default function TestDemoPage() {
           totalCount={totalCount}
           resolvedCount={resolvedCount}
           unresolvedCount={unresolvedCount}
+          aggregation={aggregation}
           onBack={() => {
             window.location.href = "/";
           }}
