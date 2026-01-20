@@ -114,3 +114,75 @@ export enum FigmaErrorCode {
   API_ERROR = 'API_ERROR',
   NETWORK_ERROR = 'NETWORK_ERROR',
 }
+
+// ============================================
+// Comment Aggregation Types
+// ============================================
+
+// Author statistics
+export interface AuthorStats {
+  authorId: string;
+  authorName: string;
+  avatarUrl: string;
+  totalComments: number;
+  rootComments: number;
+  replies: number;
+  resolvedComments: number;
+  unresolvedComments: number;
+}
+
+// Hourly aggregation (0-23)
+export interface HourlyStats {
+  hour: number; // 0-23
+  count: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+}
+
+// Daily aggregation
+export interface DailyStats {
+  date: string; // YYYY-MM-DD format
+  count: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+  authors: string[]; // unique author IDs for that day
+}
+
+// Weekly aggregation
+export interface WeeklyStats {
+  weekStart: string; // YYYY-MM-DD (Monday of the week)
+  weekEnd: string; // YYYY-MM-DD (Sunday of the week)
+  count: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+}
+
+// Resolution status stats
+export interface ResolutionStats {
+  total: number;
+  resolved: number;
+  unresolved: number;
+  resolutionRate: number; // percentage 0-100
+  averageResolutionTimeMs: number | null; // average time to resolve in milliseconds
+}
+
+// Complete aggregated statistics
+export interface CommentAggregation {
+  overview: ResolutionStats;
+  byAuthor: AuthorStats[];
+  byHour: HourlyStats[];
+  byDate: DailyStats[];
+  byWeek: WeeklyStats[];
+  timeRange: {
+    earliest: string | null; // ISO date string
+    latest: string | null; // ISO date string
+    spanDays: number;
+  };
+}
+
+// Extended API response with aggregations
+export interface CommentsApiResponseWithAggregation extends CommentsApiResponse {
+  data?: CommentsApiResponse['data'] & {
+    aggregation: CommentAggregation;
+  };
+}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createFigmaApiService, getFigmaAccessToken, FigmaApiError } from '@/app/lib/services/figma-api';
 import { parseFigmaUrl, isValidFigmaUrl } from '@/app/lib/utils/figma-url';
-import { CommentsApiResponse, FigmaErrorCode } from '@/app/lib/types/figma';
+import { aggregateComments } from '@/app/lib/utils/comment-aggregation';
+import { CommentsApiResponseWithAggregation, FigmaErrorCode } from '@/app/lib/types/figma';
 
 /**
  * POST /api/figma/comments
@@ -13,7 +14,7 @@ import { CommentsApiResponse, FigmaErrorCode } from '@/app/lib/types/figma';
  *   "accessToken"?: "figd_xxx" // Optional, uses server token if not provided
  * }
  */
-export async function POST(request: NextRequest): Promise<NextResponse<CommentsApiResponse>> {
+export async function POST(request: NextRequest): Promise<NextResponse<CommentsApiResponseWithAggregation>> {
   try {
     // Parse request body
     const body = await request.json();
@@ -81,7 +82,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
     const figmaService = createFigmaApiService(accessToken);
     const result = await figmaService.getCommentsWithFileInfo(parsedUrl.fileKey);
 
-    // Return successful response
+    // Generate aggregated statistics
+    const aggregation = aggregateComments(result.threads);
+
+    // Return successful response with aggregation data
     return NextResponse.json({
       success: true,
       data: {
@@ -94,6 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
         totalCount: result.stats.total,
         resolvedCount: result.stats.resolved,
         unresolvedCount: result.stats.unresolved,
+        aggregation,
       },
     });
   } catch (error) {
