@@ -103,6 +103,14 @@ export function CommentCard({ comment, isReply = false }: CommentCardProps) {
                   #{comment.orderId}
                 </span>
               )}
+              {!isReply && comment.page && (
+                <span
+                  className="inline-flex max-w-[220px] items-center truncate rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300"
+                  title={comment.page.name}
+                >
+                  {comment.page.name}
+                </span>
+              )}
               {!isReply && (
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getCategoryClasses(comment.category)}`}>
                   {category.label}

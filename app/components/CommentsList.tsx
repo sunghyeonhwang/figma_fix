@@ -12,18 +12,33 @@ interface CommentsListProps {
 
 type FilterType = "all" | "resolved" | "unresolved";
 type SortType = "newest" | "oldest";
+type GroupMode = "page" | "date";
 type CategoryFilterType = CommentCategoryId | "all";
+type PageFilterType = string | "all";
 
 interface GroupedComments {
-  date: string;
-  displayDate: string;
+  key: string;
+  label: string;
+  type: GroupMode;
+  order: number;
   comments: CommentThread[];
 }
+
+interface PageCount {
+  id: string;
+  name: string;
+  order: number;
+  count: number;
+}
+
+const UNKNOWN_PAGE_ID = "__unknown_page__";
 
 export function CommentsList({ comments }: CommentsListProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("newest");
+  const [groupMode, setGroupMode] = useState<GroupMode>("page");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>("all");
+  const [pageFilter, setPageFilter] = useState<PageFilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: null,
@@ -44,6 +59,11 @@ export function CommentsList({ comments }: CommentsListProps) {
     // Apply category filter
     if (categoryFilter !== "all") {
       result = result.filter((c) => c.category === categoryFilter);
+    }
+
+    // Apply page filter
+    if (pageFilter !== "all") {
+      result = result.filter((c) => getPageKey(c) === pageFilter);
     }
 
     // Apply date range filter
@@ -74,6 +94,7 @@ export function CommentsList({ comments }: CommentsListProps) {
         (c) =>
           c.message.toLowerCase().includes(query) ||
           c.author.name.toLowerCase().includes(query) ||
+          getPageLabel(c).toLowerCase().includes(query) ||
           getCategoryDefinition(c.category).label.toLowerCase().includes(query) ||
           c.replies.some(
             (r) =>
@@ -91,10 +112,42 @@ export function CommentsList({ comments }: CommentsListProps) {
     });
 
     return result;
-  }, [comments, filter, categoryFilter, sort, searchQuery, dateRange]);
+  }, [comments, filter, categoryFilter, pageFilter, sort, searchQuery, dateRange]);
 
-  // Group comments by date
+  // Group comments by page or date
   const groupedComments = useMemo((): GroupedComments[] => {
+    if (groupMode === "page") {
+      const pageGroups = new Map<string, GroupedComments>();
+
+      filteredComments.forEach((comment) => {
+        const key = getPageKey(comment);
+        const existing = pageGroups.get(key);
+
+        if (existing) {
+          existing.comments.push(comment);
+          return;
+        }
+
+        pageGroups.set(key, {
+          key,
+          label: getPageLabel(comment),
+          type: "page",
+          order: comment.page?.order ?? Number.MAX_SAFE_INTEGER,
+          comments: [comment],
+        });
+      });
+
+      return Array.from(pageGroups.values())
+        .map((group) => ({
+          ...group,
+          comments: sortCommentsByDate(group.comments, sort),
+        }))
+        .sort((a, b) => {
+          if (a.order !== b.order) return a.order - b.order;
+          return a.label.localeCompare(b.label, "ko-KR");
+        });
+    }
+
     const groups: Record<string, CommentThread[]> = {};
 
     filteredComments.forEach((comment) => {
@@ -110,17 +163,19 @@ export function CommentsList({ comments }: CommentsListProps) {
     // Convert to array and format display dates
     const sortedGroups = Object.entries(groups)
       .map(([date, comments]) => ({
-        date,
-        displayDate: formatGroupDate(date),
-        comments,
+        key: date,
+        label: formatGroupDate(date),
+        type: "date" as GroupMode,
+        order: new Date(date).getTime(),
+        comments: sortCommentsByDate(comments, sort),
       }))
       .sort((a, b) => {
-        const comparison = a.date.localeCompare(b.date);
+        const comparison = a.key.localeCompare(b.key);
         return sort === "newest" ? -comparison : comparison;
       });
 
     return sortedGroups;
-  }, [filteredComments, sort]);
+  }, [filteredComments, groupMode, sort]);
 
   // Get counts for filter badges
   const counts = useMemo(() => {
@@ -136,6 +191,32 @@ export function CommentsList({ comments }: CommentsListProps) {
       ...category,
       count: comments.filter((comment) => comment.category === category.id).length,
     }));
+  }, [comments]);
+
+  const pageCounts = useMemo((): PageCount[] => {
+    const pageMap = new Map<string, PageCount>();
+
+    comments.forEach((comment) => {
+      const key = getPageKey(comment);
+      const current = pageMap.get(key);
+
+      if (current) {
+        current.count += 1;
+        return;
+      }
+
+      pageMap.set(key, {
+        id: key,
+        name: getPageLabel(comment),
+        order: comment.page?.order ?? Number.MAX_SAFE_INTEGER,
+        count: 1,
+      });
+    });
+
+    return Array.from(pageMap.values()).sort((a, b) => {
+      if (a.order !== b.order) return a.order - b.order;
+      return a.name.localeCompare(b.name, "ko-KR");
+    });
   }, [comments]);
 
   return (
@@ -216,13 +297,27 @@ export function CommentsList({ comments }: CommentsListProps) {
           </div>
 
           {/* Date Range and Sort */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Date Range Picker */}
             <DateRangePicker
               value={dateRange}
               onChange={setDateRange}
               maxDate={new Date()}
             />
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                보기:
+              </span>
+              <select
+                value={groupMode}
+                onChange={(e) => setGroupMode(e.target.value as GroupMode)}
+                className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              >
+                <option value="page">페이지별</option>
+                <option value="date">날짜별</option>
+              </select>
+            </div>
 
             {/* Sort Dropdown */}
             <div className="flex items-center gap-2">
@@ -257,11 +352,27 @@ export function CommentsList({ comments }: CommentsListProps) {
               </option>
             ))}
           </select>
+
+          <span className="ml-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            페이지
+          </span>
+          <select
+            value={pageFilter}
+            onChange={(event) => setPageFilter(event.target.value)}
+            className="h-9 max-w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 sm:max-w-[280px]"
+          >
+            <option value="all">전체 페이지</option>
+            {pageCounts.map((page) => (
+              <option key={page.id} value={page.id}>
+                {page.name} ({page.count})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       {/* Results Summary */}
-      {(searchQuery || dateRange.startDate || dateRange.endDate || categoryFilter !== "all") && (
+      {(searchQuery || dateRange.startDate || dateRange.endDate || categoryFilter !== "all" || pageFilter !== "all") && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
           <svg
             className="h-4 w-4"
@@ -280,12 +391,18 @@ export function CommentsList({ comments }: CommentsListProps) {
             {searchQuery && (
               <>
                 &quot;{searchQuery}&quot;
-                {(dateRange.startDate || dateRange.endDate || categoryFilter !== "all") && " · "}
+                {(dateRange.startDate || dateRange.endDate || categoryFilter !== "all" || pageFilter !== "all") && " · "}
               </>
             )}
             {categoryFilter !== "all" && (
               <>
                 {getCategoryDefinition(categoryFilter).label}
+                {(dateRange.startDate || dateRange.endDate || pageFilter !== "all") && " · "}
+              </>
+            )}
+            {pageFilter !== "all" && (
+              <>
+                {pageCounts.find((page) => page.id === pageFilter)?.name ?? "페이지 미확인"}
                 {(dateRange.startDate || dateRange.endDate) && " · "}
               </>
             )}
@@ -311,27 +428,15 @@ export function CommentsList({ comments }: CommentsListProps) {
       {groupedComments.length > 0 ? (
         <div className="space-y-8">
           {groupedComments.map((group) => (
-            <div key={group.date}>
-              {/* Date Header */}
+            <div key={group.key}>
+              {/* Group Header */}
               <div className="sticky top-0 z-10 -mx-1 mb-4 flex items-center gap-3 bg-gradient-to-r from-zinc-50 via-zinc-50 to-transparent px-1 py-2 dark:from-zinc-950 dark:via-zinc-950">
                 <div className="flex items-center gap-2">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                    <svg
-                      className="h-4 w-4 text-purple-600 dark:text-purple-400"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
+                    {group.type === "page" ? <PageIcon /> : <CalendarIcon />}
                   </div>
-                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
-                    {group.displayDate}
+                  <h3 className="max-w-[72vw] truncate text-sm font-semibold text-zinc-900 dark:text-white sm:max-w-none">
+                    {group.label}
                   </h3>
                 </div>
                 <div className="h-px flex-1 bg-gradient-to-r from-zinc-200 to-transparent dark:from-zinc-700" />
@@ -355,9 +460,12 @@ export function CommentsList({ comments }: CommentsListProps) {
           searchQuery={searchQuery}
           dateRange={dateRange}
           categoryFilter={categoryFilter}
+          pageFilter={pageFilter}
+          pageLabel={pageCounts.find((page) => page.id === pageFilter)?.name}
           onClearSearch={() => setSearchQuery("")}
           onClearFilter={() => setFilter("all")}
           onClearCategory={() => setCategoryFilter("all")}
+          onClearPage={() => setPageFilter("all")}
           onClearDateRange={() => setDateRange({ startDate: null, endDate: null })}
         />
       )}
@@ -419,9 +527,12 @@ interface EmptyStateProps {
   searchQuery: string;
   dateRange: DateRange;
   categoryFilter: CategoryFilterType;
+  pageFilter: PageFilterType;
+  pageLabel?: string;
   onClearSearch: () => void;
   onClearFilter: () => void;
   onClearCategory: () => void;
+  onClearPage: () => void;
   onClearDateRange: () => void;
 }
 
@@ -430,9 +541,12 @@ function EmptyState({
   searchQuery,
   dateRange,
   categoryFilter,
+  pageFilter,
+  pageLabel,
   onClearSearch,
   onClearFilter,
   onClearCategory,
+  onClearPage,
   onClearDateRange,
 }: EmptyStateProps) {
   const hasDateFilter = dateRange.startDate || dateRange.endDate;
@@ -446,6 +560,9 @@ function EmptyState({
     }
     if (categoryFilter !== "all") {
       return `${getCategoryDefinition(categoryFilter).label} 분류의 댓글이 없습니다.`;
+    }
+    if (pageFilter !== "all") {
+      return `${pageLabel ?? "선택한 페이지"}에 댓글이 없습니다.`;
     }
     switch (filter) {
       case "resolved":
@@ -477,7 +594,7 @@ function EmptyState({
       <p className="mb-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
         {getMessage()}
       </p>
-      {(searchQuery || filter !== "all" || categoryFilter !== "all" || hasDateFilter) && (
+      {(searchQuery || filter !== "all" || categoryFilter !== "all" || pageFilter !== "all" || hasDateFilter) && (
         <div className="flex flex-wrap justify-center gap-2">
           {searchQuery && (
             <button
@@ -509,6 +626,14 @@ function EmptyState({
               className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               분류 초기화
+            </button>
+          )}
+          {pageFilter !== "all" && (
+            <button
+              onClick={onClearPage}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              페이지 초기화
             </button>
           )}
         </div>
@@ -556,4 +681,57 @@ function formatGroupDate(dateString: string): string {
     month: "long",
     day: "numeric",
   });
+}
+
+function sortCommentsByDate(comments: CommentThread[], sort: SortType) {
+  return [...comments].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime();
+    const dateB = new Date(b.createdAt).getTime();
+    return sort === "newest" ? dateB - dateA : dateA - dateB;
+  });
+}
+
+function getPageKey(comment: CommentThread) {
+  return comment.page?.id ?? UNKNOWN_PAGE_ID;
+}
+
+function getPageLabel(comment: CommentThread) {
+  return comment.page?.name ?? "페이지 미확인";
+}
+
+function PageIcon() {
+  return (
+    <svg
+      className="h-4 w-4 text-purple-600 dark:text-purple-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v11a2.5 2.5 0 01-2.5 2.5h-11A2.5 2.5 0 014 17.5v-11z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 8h8M8 12h8M8 16h4" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg
+      className="h-4 w-4 text-purple-600 dark:text-purple-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
+    </svg>
+  );
 }

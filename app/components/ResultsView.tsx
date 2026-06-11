@@ -109,7 +109,7 @@ export function ResultsView({
   })).filter((category) => category.count > 0);
 
   return (
-    <div className="w-full max-w-3xl">
+    <div className="w-full max-w-6xl">
       {/* Header with Back Button and Export Button */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button

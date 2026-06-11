@@ -28,6 +28,7 @@ function flattenCommentsForExport(threads: CommentThread[]): Array<{
   date: string;
   time: string;
   author: string;
+  page: string;
   category: string;
   message: string;
   status: string;
@@ -41,6 +42,7 @@ function flattenCommentsForExport(threads: CommentThread[]): Array<{
     date: string;
     time: string;
     author: string;
+    page: string;
     category: string;
     message: string;
     status: string;
@@ -76,6 +78,7 @@ function flattenCommentsForExport(threads: CommentThread[]): Array<{
       date: dateStr,
       time: timeStr,
       author: comment.author.name,
+      page: comment.page?.name ?? '페이지 미확인',
       category: getCategoryDefinition(comment.category).label,
       message: comment.message,
       status: comment.isResolved ? '해결됨' : '미해결',
@@ -104,13 +107,14 @@ function createCommentsSheet(comments: CommentThread[]): XLSX.WorkSheet {
   const rows = flattenCommentsForExport(comments);
 
   const data = [
-    ['댓글 번호', 'ID', '날짜', '시간', '작성자', '분류', '내용', '상태', '유형', '답글 수', '위치'],
+    ['댓글 번호', 'ID', '날짜', '시간', '작성자', '페이지', '분류', '내용', '상태', '유형', '답글 수', '위치'],
     ...rows.map(row => [
       row.orderId,
       row.id,
       row.date,
       row.time,
       row.author,
+      row.page,
       row.category,
       row.message,
       row.status,
@@ -129,6 +133,7 @@ function createCommentsSheet(comments: CommentThread[]): XLSX.WorkSheet {
     { wch: 12 },  // Date
     { wch: 8 },   // Time
     { wch: 15 },  // Author
+    { wch: 24 },  // Page
     { wch: 12 },  // Category
     { wch: 50 },  // Message
     { wch: 10 },  // Status

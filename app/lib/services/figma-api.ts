@@ -4,6 +4,8 @@ import {
   FigmaFileResponse,
   FigmaErrorCode,
   CommentThread,
+  CommentPageInfo,
+  FigmaNode,
 } from '../types/figma';
 
 /**
@@ -94,19 +96,61 @@ class FigmaApiService {
    */
   async getFileInfo(fileKey: string): Promise<FigmaFileResponse> {
     // We only need basic file info, so we use depth=1 to minimize response
-    const response = await this.request<{
-      name: string;
-      lastModified: string;
-      thumbnailUrl: string;
-      version: string;
-    }>(`/files/${fileKey}?depth=1`);
+    const response = await this.request<FigmaFileResponse>(`/files/${fileKey}?depth=1`);
 
     return {
       name: response.name,
       lastModified: response.lastModified,
       thumbnailUrl: response.thumbnailUrl,
       version: response.version,
+      document: response.document,
     };
+  }
+
+  /**
+   * Fetches a subset of a Figma file around specific node ids.
+   */
+  async getFileNodeAncestors(fileKey: string, nodeIds: string[]): Promise<FigmaFileResponse[]> {
+    const chunks = chunkArray([...new Set(nodeIds)].filter(Boolean), 100);
+    const responses: FigmaFileResponse[] = [];
+
+    for (const chunk of chunks) {
+      if (chunk.length === 0) continue;
+      const encodedIds = chunk.map((id) => encodeURIComponent(id)).join(',');
+      const response = await this.request<FigmaFileResponse>(
+        `/files/${fileKey}?ids=${encodedIds}`
+      );
+
+      responses.push(response);
+    }
+
+    return responses;
+  }
+
+  /**
+   * Resolves comment node ids to their containing top-level Figma pages.
+   */
+  async getCommentPageMap(
+    fileKey: string,
+    comments: FigmaComment[],
+    pageOrderById: Map<string, number> = new Map()
+  ): Promise<Map<string, CommentPageInfo>> {
+    const nodeIds = comments
+      .map((comment) => comment.client_meta?.node_id)
+      .filter((nodeId): nodeId is string => !!nodeId);
+
+    if (nodeIds.length === 0) {
+      return new Map();
+    }
+
+    const responses = await this.getFileNodeAncestors(fileKey, nodeIds);
+    const pageByNodeId = new Map<string, CommentPageInfo>();
+
+    for (const response of responses) {
+      mergePageLookup(response.document, pageByNodeId, pageOrderById);
+    }
+
+    return pageByNodeId;
   }
 
   /**
@@ -119,7 +163,10 @@ class FigmaApiService {
   /**
    * Organizes flat comments into threaded structure
    */
-  organizeCommentsIntoThreads(comments: FigmaComment[]): CommentThread[] {
+  organizeCommentsIntoThreads(
+    comments: FigmaComment[],
+    pageByNodeId: Map<string, CommentPageInfo> = new Map()
+  ): CommentThread[] {
     // Create a map of comment id to comment
     const commentMap = new Map<string, FigmaComment>();
     const rootComments: FigmaComment[] = [];
@@ -136,29 +183,34 @@ class FigmaApiService {
     }
 
     // Convert a FigmaComment to CommentThread
-    const toCommentThread = (comment: FigmaComment): CommentThread => ({
-      id: comment.id,
-      orderId: comment.order_id,
-      parentId: comment.parent_id || null,
-      author: {
-        id: comment.user.id,
-        name: comment.user.handle,
-        avatarUrl: comment.user.img_url,
-      },
-      message: comment.message,
-      messageMd: comment.message,
-      createdAt: comment.created_at,
-      resolvedAt: comment.resolved_at,
-      isResolved: comment.resolved_at !== null,
-      position: comment.client_meta
-        ? {
-            x: comment.client_meta.x,
-            y: comment.client_meta.y,
-            nodeId: comment.client_meta.node_id,
-          }
-        : null,
-      replies: [],
-    });
+    const toCommentThread = (comment: FigmaComment): CommentThread => {
+      const nodeId = comment.client_meta?.node_id;
+
+      return {
+        id: comment.id,
+        orderId: comment.order_id,
+        parentId: comment.parent_id || null,
+        author: {
+          id: comment.user.id,
+          name: comment.user.handle,
+          avatarUrl: comment.user.img_url,
+        },
+        message: comment.message,
+        messageMd: comment.message,
+        createdAt: comment.created_at,
+        resolvedAt: comment.resolved_at,
+        isResolved: comment.resolved_at !== null,
+        position: comment.client_meta
+          ? {
+              x: comment.client_meta.x,
+              y: comment.client_meta.y,
+              nodeId,
+            }
+          : null,
+        page: nodeId ? getPageForNodeId(pageByNodeId, nodeId) : null,
+        replies: [],
+      };
+    };
 
     // Build thread structure
     const threads: CommentThread[] = [];
@@ -182,6 +234,7 @@ class FigmaApiService {
       const parentThread = threadMap.get(childComment.parent_id);
       if (parentThread) {
         const childThread = toCommentThread(childComment);
+        childThread.page = childThread.page ?? parentThread.page ?? null;
         parentThread.replies.push(childThread);
         threadMap.set(childComment.id, childThread);
       }
@@ -213,7 +266,12 @@ class FigmaApiService {
       this.getComments(fileKey),
     ]);
 
-    const threads = this.organizeCommentsIntoThreads(commentsResponse.comments);
+    const pageByNodeId = await this.getCommentPageMap(
+      fileKey,
+      commentsResponse.comments,
+      getTopLevelPageOrder(fileInfo.document)
+    );
+    const threads = this.organizeCommentsIntoThreads(commentsResponse.comments, pageByNodeId);
 
     // Calculate stats
     const resolvedCount = threads.filter((t) => t.isResolved).length;
@@ -253,3 +311,79 @@ export function getFigmaAccessToken(): string | null {
 
 export { FigmaApiService };
 export type { FigmaApiError };
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function mergePageLookup(
+  document: FigmaNode | undefined,
+  pageByNodeId: Map<string, CommentPageInfo>,
+  pageOrderById: Map<string, number>
+) {
+  if (!document?.children) return;
+
+  document.children.forEach((page, index) => {
+    const pageInfo: CommentPageInfo = {
+      id: page.id,
+      name: page.name,
+      order: pageOrderById.get(page.id) ?? index,
+    };
+
+    mapNodeToPage(pageByNodeId, page, pageInfo);
+  });
+}
+
+function mapNodeToPage(
+  pageByNodeId: Map<string, CommentPageInfo>,
+  node: FigmaNode,
+  page: CommentPageInfo
+) {
+  addNodeIdAliases(pageByNodeId, node.id, page);
+
+  for (const child of node.children ?? []) {
+    mapNodeToPage(pageByNodeId, child, page);
+  }
+}
+
+function addNodeIdAliases(
+  pageByNodeId: Map<string, CommentPageInfo>,
+  nodeId: string,
+  page: CommentPageInfo
+) {
+  pageByNodeId.set(nodeId, page);
+  pageByNodeId.set(nodeId.replace(/:/g, '-'), page);
+}
+
+function getPageForNodeId(
+  pageByNodeId: Map<string, CommentPageInfo>,
+  nodeId: string
+): CommentPageInfo | null {
+  const normalizedNodeId = nodeId.replace(/-/g, ':');
+  const instanceNodeId = normalizedNodeId.includes(';')
+    ? normalizedNodeId.split(';').at(-1)
+    : null;
+
+  return (
+    pageByNodeId.get(nodeId) ??
+    pageByNodeId.get(normalizedNodeId) ??
+    (instanceNodeId ? pageByNodeId.get(instanceNodeId) : undefined) ??
+    null
+  );
+}
+
+function getTopLevelPageOrder(document: FigmaNode | undefined) {
+  const pageOrderById = new Map<string, number>();
+
+  document?.children?.forEach((page, index) => {
+    pageOrderById.set(page.id, index);
+  });
+
+  return pageOrderById;
+}

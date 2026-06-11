@@ -5,6 +5,8 @@ import type { Session } from "@supabase/supabase-js";
 import { CommentsApiResponseWithAggregation, CommentThread, CommentAggregation } from "./lib/types/figma";
 import { AuthGate, ResultsView, SettingsMenu } from "./components";
 import { useTokenStorage } from "./lib/hooks/useTokenStorage";
+import { createSupabaseBrowserClient } from "./lib/supabase/client";
+import { aggregateComments } from "./lib/utils/comment-aggregation";
 
 interface AnalysisResult {
   fileInfo: {
@@ -20,6 +22,22 @@ interface AnalysisResult {
   unresolvedCount: number;
   aggregation?: CommentAggregation;
   runId?: string | null;
+}
+
+interface SavedRunSummary {
+  id: string;
+  figma_file_key: string;
+  figma_file_name: string;
+  figma_url: string | null;
+  figma_node_id: string | null;
+  total_count: number;
+  resolved_count: number;
+  unresolved_count: number;
+  created_at: string;
+}
+
+interface SavedRunDetail extends SavedRunSummary {
+  raw_comments: unknown;
 }
 
 export default function Home() {
@@ -38,6 +56,10 @@ function CommentReaderApp({ session }: { session: Session }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [savedRuns, setSavedRuns] = useState<SavedRunSummary[]>([]);
+  const [isLoadingSavedRuns, setIsLoadingSavedRuns] = useState(false);
+  const [loadingSavedRunId, setLoadingSavedRunId] = useState<string | null>(null);
+  const [savedRunsVersion, setSavedRunsVersion] = useState(0);
 
   const { savedToken, isLoaded, saveToken, clearToken } = useTokenStorage();
 
@@ -47,6 +69,43 @@ function CommentReaderApp({ session }: { session: Session }) {
       setAccessToken(savedToken);
     }
   }, [isLoaded, savedToken, accessToken]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSavedRuns() {
+      const supabase = createSupabaseBrowserClient();
+      if (!supabase) return;
+
+      setIsLoadingSavedRuns(true);
+
+      const { data, error } = await supabase
+        .from("figma_comment_runs")
+        .select(
+          "id, figma_file_key, figma_file_name, figma_url, figma_node_id, total_count, resolved_count, unresolved_count, created_at"
+        )
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (!isMounted) return;
+
+      if (error) {
+        console.error("Failed to load saved runs:", error.message);
+        setSavedRuns([]);
+      } else {
+        setSavedRuns((data ?? []) as SavedRunSummary[]);
+      }
+
+      setIsLoadingSavedRuns(false);
+    }
+
+    void loadSavedRuns();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session.user.id, savedRunsVersion]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +132,7 @@ function CommentReaderApp({ session }: { session: Session }) {
 
       if (data.success && data.data) {
         setResult(data.data);
+        setSavedRunsVersion((version) => version + 1);
       } else {
         setError(data.error?.message || "알 수 없는 오류가 발생했습니다.");
       }
@@ -84,6 +144,51 @@ function CommentReaderApp({ session }: { session: Session }) {
     }
   };
 
+  const handleOpenSavedRun = async (runId: string) => {
+    const supabase = createSupabaseBrowserClient();
+    if (!supabase) return;
+
+    setLoadingSavedRunId(runId);
+    setError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from("figma_comment_runs")
+        .select(
+          "id, figma_file_key, figma_file_name, figma_url, figma_node_id, total_count, resolved_count, unresolved_count, created_at, raw_comments"
+        )
+        .eq("user_id", session.user.id)
+        .eq("id", runId)
+        .single();
+
+      if (error || !data) {
+        setError(error?.message || "저장된 분석 결과를 불러올 수 없습니다.");
+        return;
+      }
+
+      const savedRun = data as SavedRunDetail;
+      const comments = parseStoredComments(savedRun.raw_comments);
+
+      setResult({
+        fileInfo: {
+          name: savedRun.figma_file_name,
+          key: savedRun.figma_file_key,
+          url: savedRun.figma_url ?? undefined,
+          nodeId: savedRun.figma_node_id ?? undefined,
+          lastModified: savedRun.created_at,
+        },
+        comments,
+        totalCount: savedRun.total_count || comments.length,
+        resolvedCount: savedRun.resolved_count,
+        unresolvedCount: savedRun.unresolved_count,
+        aggregation: aggregateComments(comments),
+        runId: savedRun.id,
+      });
+    } finally {
+      setLoadingSavedRunId(null);
+    }
+  };
+
   const handleBack = () => {
     setResult(null);
     setError(null);
@@ -92,7 +197,7 @@ function CommentReaderApp({ session }: { session: Session }) {
   // Show Results View when we have results
   if (result) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black">
+      <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black sm:px-6 lg:px-8">
         <div className="mx-auto flex justify-center">
           <ResultsView
             fileInfo={result.fileInfo}
@@ -153,7 +258,7 @@ function CommentReaderApp({ session }: { session: Session }) {
         }}
       />
 
-      <main className="flex w-full max-w-2xl flex-col items-center gap-8">
+      <main className="flex w-full max-w-3xl flex-col items-center gap-8">
         {/* Logo / Icon */}
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
           <svg
@@ -352,6 +457,13 @@ function CommentReaderApp({ session }: { session: Session }) {
           </p>
         )}
 
+        <SavedRunsList
+          runs={savedRuns}
+          isLoading={isLoadingSavedRuns}
+          loadingRunId={loadingSavedRunId}
+          onOpenRun={handleOpenSavedRun}
+        />
+
         {/* Error Message */}
         {error && (
           <div className="w-full rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
@@ -363,4 +475,87 @@ function CommentReaderApp({ session }: { session: Session }) {
       </main>
     </div>
   );
+}
+
+function SavedRunsList({
+  runs,
+  isLoading,
+  loadingRunId,
+  onOpenRun,
+}: {
+  runs: SavedRunSummary[];
+  isLoading: boolean;
+  loadingRunId: string | null;
+  onOpenRun: (runId: string) => void;
+}) {
+  if (isLoading && runs.length === 0) {
+    return (
+      <section className="w-full border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">최근 분석을 불러오는 중...</p>
+      </section>
+    );
+  }
+
+  if (runs.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="w-full border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-bold text-zinc-900 dark:text-white">최근 분석</h2>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+            최근 저장된 분석 결과
+          </p>
+        </div>
+        <span className="text-xs font-medium text-zinc-400">{runs.length}개</span>
+      </div>
+
+      <div className="grid gap-2">
+        {runs.map((run) => (
+          <button
+            key={run.id}
+            type="button"
+            onClick={() => onOpenRun(run.id)}
+            disabled={loadingRunId === run.id}
+            className="grid w-full gap-2 rounded-xl border border-zinc-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-300 hover:shadow-md disabled:cursor-wait disabled:opacity-70 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-purple-700"
+          >
+            <div className="flex min-w-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                  {run.figma_file_name}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  {formatSavedRunDate(run.created_at)}
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                {loadingRunId === run.id ? "여는 중" : `${run.total_count}개`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <span>미해결 {run.unresolved_count}</span>
+              <span>해결 {run.resolved_count}</span>
+              {run.figma_node_id && <span>노드 {run.figma_node_id}</span>}
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function parseStoredComments(value: unknown): CommentThread[] {
+  return Array.isArray(value) ? (value as CommentThread[]) : [];
+}
+
+function formatSavedRunDate(value: string) {
+  return new Date(value).toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

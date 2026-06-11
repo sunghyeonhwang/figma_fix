@@ -36,6 +36,14 @@ export interface FigmaComment {
   order_id?: number | string | null;
 }
 
+// Minimal node shape used to resolve a comment's containing page
+export interface FigmaNode {
+  id: string;
+  name: string;
+  type: string;
+  children?: FigmaNode[];
+}
+
 // Response from Figma GET /v1/files/:file_key/comments
 export interface FigmaCommentsResponse {
   comments: FigmaComment[];
@@ -55,6 +63,7 @@ export interface FigmaFileResponse {
   lastModified: string;
   thumbnailUrl: string;
   version: string;
+  document?: FigmaNode;
 }
 
 // Parsed Figma URL information
@@ -84,11 +93,18 @@ export interface CommentThread {
     y?: number;
     nodeId?: string;
   } | null;
+  page?: CommentPageInfo | null;
   category?: CommentCategoryId;
   categoryLabel?: string;
   categoryConfidence?: number;
   categoryReasons?: string[];
   replies: CommentThread[];
+}
+
+export interface CommentPageInfo {
+  id: string;
+  name: string;
+  order: number;
 }
 
 export type CommentCategoryId =

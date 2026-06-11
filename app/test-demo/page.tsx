@@ -16,6 +16,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: null,
     isResolved: false,
     position: { x: 100, y: 200 },
+    page: { id: "0:1", name: "메인 화면", order: 0 },
     replies: [
       {
         id: "1-1",
@@ -26,6 +27,7 @@ const mockComments: CommentThread[] = [
         resolvedAt: null,
         isResolved: false,
         position: null,
+        page: { id: "0:1", name: "메인 화면", order: 0 },
         replies: [],
       },
     ],
@@ -39,6 +41,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
     isResolved: true,
     position: { x: 300, y: 400 },
+    page: { id: "0:1", name: "메인 화면", order: 0 },
     replies: [],
   },
   {
@@ -50,6 +53,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: null,
     isResolved: false,
     position: null,
+    page: { id: "0:2", name: "모바일 반응형", order: 1 },
     replies: [],
   },
   {
@@ -61,6 +65,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
     isResolved: true,
     position: { x: 500, y: 600 },
+    page: { id: "0:3", name: "승인 및 QA", order: 2 },
     replies: [],
   },
   {
@@ -72,6 +77,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 8).toISOString(),
     isResolved: true,
     position: null,
+    page: { id: "0:2", name: "모바일 반응형", order: 1 },
     replies: [
       {
         id: "5-1",
@@ -82,6 +88,7 @@ const mockComments: CommentThread[] = [
         resolvedAt: null,
         isResolved: false,
         position: null,
+        page: { id: "0:2", name: "모바일 반응형", order: 1 },
         replies: [],
       },
     ],
@@ -95,6 +102,7 @@ const mockComments: CommentThread[] = [
     resolvedAt: null,
     isResolved: false,
     position: { x: 200, y: 350 },
+    page: { id: "0:3", name: "승인 및 QA", order: 2 },
     replies: [],
   },
 ];
@@ -115,7 +123,7 @@ export default function TestDemoPage() {
   const aggregation: CommentAggregation = aggregateComments(classifiedComments);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black">
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black sm:px-6 lg:px-8">
       <div className="mx-auto flex justify-center">
         <ResultsView
           fileInfo={mockFileInfo}

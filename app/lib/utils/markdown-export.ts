@@ -64,6 +64,7 @@ function appendComment(lines: string[], fileInfo: FileInfo, comment: CommentThre
   lines.push(`### ${index}. ${comment.orderId ? `Comment #${comment.orderId}` : comment.id}`);
   lines.push("");
   lines.push(`- 분류: ${category.label}`);
+  lines.push(`- 페이지: ${comment.page?.name ?? "페이지 미확인"}`);
   lines.push(`- 상태: ${comment.isResolved ? "해결됨" : "미해결"}`);
   lines.push(`- 작성자: ${comment.author.name}`);
   lines.push(`- 작성일: ${formatDateTime(comment.createdAt)}`);
