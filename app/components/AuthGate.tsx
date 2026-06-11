@@ -209,8 +209,8 @@ export function AuthGate({ children }: AuthGateProps) {
 
 function SupabaseSetupRequired() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4 text-stone-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <main className="w-full max-w-2xl rounded-2xl border border-stone-200 bg-white p-6 shadow-xl shadow-stone-200/60 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20">
+    <div className="flex min-h-screen items-center justify-center bg-stone-50 px-4 py-10 text-stone-900 dark:bg-zinc-950 dark:text-zinc-100">
+      <main className="w-full max-w-4xl rounded-2xl border border-stone-200 bg-white p-6 shadow-xl shadow-stone-200/60 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20">
         <div className="mb-5">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-600 dark:text-teal-300">
             Supabase required
@@ -219,14 +219,38 @@ function SupabaseSetupRequired() {
             로그인 설정이 필요합니다
           </h1>
           <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-zinc-400">
-            Vercel 또는 로컬 환경변수에 Supabase URL과 anon key를 넣으면 로그인 화면이 활성화됩니다.
+            Vercel 또는 로컬 환경변수에 Supabase URL과 anon key를 넣으면 로그인 화면이 활성화됩니다. 설정 후 재배포하면 이 화면은 자동으로 사라집니다.
           </p>
         </div>
-        <pre className="overflow-x-auto rounded-xl bg-stone-950 p-4 text-sm text-stone-100">
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
+          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+            <h2 className="text-sm font-bold text-stone-950 dark:text-white">
+              필요한 환경변수
+            </h2>
+            <pre className="mt-3 overflow-x-auto rounded-xl bg-stone-950 p-4 text-xs leading-6 text-stone-100">
 {`NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 FIGMA_ACCESS_TOKEN=figd_optional_server_token`}
-        </pre>
+            </pre>
+            <p className="mt-3 text-xs leading-5 text-stone-500 dark:text-zinc-400">
+              `FIGMA_ACCESS_TOKEN`은 선택값입니다. 설정하지 않아도 로그인 후 사용자가 앱 설정에서 개인 Figma token을 입력할 수 있습니다.
+            </p>
+          </section>
+
+          <section className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-sm text-stone-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
+            <h2 className="font-bold text-stone-950 dark:text-white">
+              운영 설정 순서
+            </h2>
+            <ol className="mt-3 space-y-2">
+              <li>1. Supabase 프로젝트를 만들고 Project Settings에서 URL과 anon key를 복사합니다.</li>
+              <li>2. Supabase SQL Editor에서 `supabase/migrations/20260611000000_initial_schema.sql`을 실행합니다.</li>
+              <li>3. Auth URL Configuration에 `https://figma-comment-reader.vercel.app`을 Site URL과 Redirect URL로 추가합니다.</li>
+              <li>4. Vercel 환경변수에 `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`를 추가합니다.</li>
+              <li>5. Vercel에서 재배포하면 로그인 화면이 활성화됩니다.</li>
+            </ol>
+          </section>
+        </div>
       </main>
     </div>
   );
