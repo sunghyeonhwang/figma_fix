@@ -39,15 +39,19 @@ Supabase 없이 UI만 확인하려면 `http://localhost:3000/test-demo`를 사�
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false
+NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=griff.co.kr
 FIGMA_ACCESS_TOKEN=figd_optional_server_token
 ```
 
 `FIGMA_ACCESS_TOKEN`은 선택값입니다. 사용자는 앱 설정에서 개인 Figma token을 입력할 수 있습니다.
+Google provider를 Supabase에서 켜기 전에는 `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false`로 둡니다.
+앱과 API는 기본적으로 `@griff.co.kr` 이메일만 허용합니다.
 
 ## Supabase 설정
 
 1. Supabase 프로젝트를 생성합니다.
-2. Authentication에서 Email provider 또는 Google provider를 활성화합니다.
+2. Authentication에서 Email provider를 활성화합니다.
 3. Site URL을 배포 URL로 설정합니다.
 4. Redirect URL에 로컬/배포 주소를 추가합니다.
    - `http://localhost:3000`
@@ -56,6 +60,19 @@ FIGMA_ACCESS_TOKEN=figd_optional_server_token
 5. `supabase/migrations/20260611000000_initial_schema.sql`을 SQL Editor에서 실행합니다.
 
 분석을 실행하면 `figma_comment_runs`에 파일/분류/원본 댓글 JSON이 저장되고, Markdown을 다운로드하면 `markdown_exports`에 export 로그가 저장됩니다.
+
+## Google 로그인 사용
+
+현재 Google provider가 꺼져 있으면 `Unsupported provider: provider is not enabled` 오류가 납니다. Google 로그인을 쓰려면:
+
+1. Google Cloud Console에서 OAuth Client ID/Secret을 만듭니다.
+2. Supabase Dashboard → Authentication → Providers → Google을 켭니다.
+3. Supabase Google provider 화면의 Callback URL을 Google OAuth redirect URI에 추가합니다.
+4. Supabase Auth URL Configuration에 `https://figma-comment-reader.vercel.app`을 Redirect URL로 추가합니다.
+5. Vercel에 `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`를 추가하고 재배포합니다.
+
+Google 설정 전에는 이메일 매직 링크 로그인을 사용합니다.
+Google provider가 켜져 있어도 앱/API는 `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` 값과 일치하는 이메일만 허용합니다.
 
 ## Vercel 환경변수 등록
 

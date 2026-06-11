@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { getAllowedEmailDomain, isAllowedEmail } from '@/app/lib/auth/access-policy';
 import { createFigmaApiService, getFigmaAccessToken, FigmaApiError } from '@/app/lib/services/figma-api';
 import { parseFigmaUrl, isValidFigmaUrl } from '@/app/lib/utils/figma-url';
 import { aggregateComments } from '@/app/lib/utils/comment-aggregation';
@@ -253,6 +254,22 @@ async function getSupabaseAuthContext(
           },
         },
         { status: 401 }
+      ),
+    };
+  }
+
+  if (!isAllowedEmail(data.user.email)) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: FigmaErrorCode.ACCESS_DENIED,
+            message: `@${getAllowedEmailDomain()} 계정만 사용할 수 있습니다.`,
+          },
+        },
+        { status: 403 }
       ),
     };
   }

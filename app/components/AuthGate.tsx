@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { getAllowedEmailDomain, isAllowedEmail } from "../lib/auth/access-policy";
 import { createSupabaseBrowserClient, getSupabaseConfig } from "../lib/supabase/client";
 
 interface AuthGateProps {
@@ -11,6 +12,8 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const hasSupabaseConfig = !!getSupabaseConfig();
+  const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === "true";
+  const allowedEmailDomain = getAllowedEmailDomain();
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -87,6 +90,17 @@ export function AuthGate({ children }: AuthGateProps) {
     await supabase.auth.signOut();
   };
 
+  useEffect(() => {
+    if (!supabase || !session) return;
+
+    if (!isAllowedEmail(session.user.email)) {
+      queueMicrotask(() => {
+        setError(`@${allowedEmailDomain} 계정만 사용할 수 있습니다.`);
+        supabase.auth.signOut();
+      });
+    }
+  }, [allowedEmailDomain, session, supabase]);
+
   if (!hasSupabaseConfig) {
     return <SupabaseSetupRequired />;
   }
@@ -134,23 +148,31 @@ export function AuthGate({ children }: AuthGateProps) {
             <div className="mb-6">
               <h2 className="text-xl font-bold text-stone-950 dark:text-white">로그인</h2>
               <p className="mt-1 text-sm text-stone-500 dark:text-zinc-400">
-                Supabase Auth로 접근을 제한합니다.
+                @{allowedEmailDomain} 계정만 접근할 수 있습니다.
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="flex h-12 w-full items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-semibold text-stone-800 transition hover:bg-stone-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
-            >
-              Google로 계속하기
-            </button>
+            {isGoogleEnabled ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleGoogleLogin}
+                  className="flex h-12 w-full items-center justify-center rounded-xl border border-stone-200 bg-white text-sm font-semibold text-stone-800 transition hover:bg-stone-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                >
+                  Google로 계속하기
+                </button>
 
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-stone-200 dark:bg-zinc-800" />
-              <span className="text-xs font-medium text-stone-400">또는</span>
-              <div className="h-px flex-1 bg-stone-200 dark:bg-zinc-800" />
-            </div>
+                <div className="my-5 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-stone-200 dark:bg-zinc-800" />
+                  <span className="text-xs font-medium text-stone-400">또는</span>
+                  <div className="h-px flex-1 bg-stone-200 dark:bg-zinc-800" />
+                </div>
+              </>
+            ) : (
+              <p className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+                Google 로그인은 Supabase Google provider를 켠 뒤 `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`로 배포하면 표시됩니다.
+              </p>
+            )}
 
             <form onSubmit={handleEmailLogin} className="space-y-3">
               <label className="block text-sm font-medium text-stone-700 dark:text-zinc-300">
@@ -231,6 +253,7 @@ function SupabaseSetupRequired() {
             <pre className="mt-3 overflow-x-auto rounded-xl bg-stone-950 p-4 text-xs leading-6 text-stone-100">
 {`NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false
 FIGMA_ACCESS_TOKEN=figd_optional_server_token`}
             </pre>
             <p className="mt-3 text-xs leading-5 text-stone-500 dark:text-zinc-400">
