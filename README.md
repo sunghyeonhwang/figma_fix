@@ -20,6 +20,7 @@ Figma 파일 코멘트를 수집해서 오탈자, 띄어쓰기, 기능오류, �
 - 해결/미해결, 날짜, 작성자, 검색어, 분류 필터
 - 분류별 Markdown 다운로드
 - Excel 리포트 다운로드
+- Supabase DB에 분석 실행 이력과 Markdown export 로그 저장
 
 ## 로컬 실행
 
@@ -52,6 +53,8 @@ FIGMA_ACCESS_TOKEN=figd_optional_server_token
    - `http://localhost:3000`
    - `https://your-vercel-domain.vercel.app`
 5. `supabase/migrations/20260611000000_initial_schema.sql`을 SQL Editor에서 실행합니다.
+
+분석을 실행하면 `figma_comment_runs`에 파일/분류/원본 댓글 JSON이 저장되고, Markdown을 다운로드하면 `markdown_exports`에 export 로그가 저장됩니다.
 
 ## Figma 권한
 

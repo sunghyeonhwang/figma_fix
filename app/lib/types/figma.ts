@@ -122,6 +122,7 @@ export interface CommentsApiResponse {
     totalCount: number;
     resolvedCount: number;
     unresolvedCount: number;
+    runId?: string | null;
   };
   error?: {
     code: string;

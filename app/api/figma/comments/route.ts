@@ -1,10 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createFigmaApiService, getFigmaAccessToken, FigmaApiError } from '@/app/lib/services/figma-api';
 import { parseFigmaUrl, isValidFigmaUrl } from '@/app/lib/utils/figma-url';
 import { aggregateComments } from '@/app/lib/utils/comment-aggregation';
 import { classifyCommentThreads } from '@/app/lib/utils/comment-classification';
-import { CommentsApiResponseWithAggregation, FigmaErrorCode } from '@/app/lib/types/figma';
+import {
+  CommentThread,
+  CommentsApiResponseWithAggregation,
+  FigmaErrorCode,
+  FigmaFileResponse,
+  ParsedFigmaUrl,
+} from '@/app/lib/types/figma';
+
+type SupabaseAuthContext = {
+  userId: string;
+  supabase: SupabaseClient;
+};
+
+type SupabaseAuthResult =
+  | { ok: true; context: SupabaseAuthContext | null }
+  | { ok: false; response: NextResponse<CommentsApiResponseWithAggregation> };
 
 /**
  * POST /api/figma/comments
@@ -18,9 +33,9 @@ import { CommentsApiResponseWithAggregation, FigmaErrorCode } from '@/app/lib/ty
  */
 export async function POST(request: NextRequest): Promise<NextResponse<CommentsApiResponseWithAggregation>> {
   try {
-    const authError = await validateSupabaseSession(request);
-    if (authError) {
-      return authError;
+    const authResult = await getSupabaseAuthContext(request);
+    if (!authResult.ok) {
+      return authResult.response;
     }
 
     // Parse request body
@@ -92,6 +107,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
 
     // Generate aggregated statistics
     const aggregation = aggregateComments(classifiedThreads);
+    const runId = await saveCommentRun({
+      authContext: authResult.context,
+      parsedUrl,
+      figmaUrl: url,
+      fileInfo: result.fileInfo,
+      comments: classifiedThreads,
+      totalCount: result.stats.total,
+      resolvedCount: result.stats.resolved,
+      unresolvedCount: result.stats.unresolved,
+    });
 
     // Return successful response with aggregation data
     return NextResponse.json({
@@ -109,6 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
         resolvedCount: result.stats.resolved,
         unresolvedCount: result.stats.unresolved,
         aggregation,
+        runId,
       },
     });
   } catch (error) {
@@ -168,9 +194,9 @@ export async function GET(): Promise<NextResponse> {
   });
 }
 
-async function validateSupabaseSession(
+async function getSupabaseAuthContext(
   request: NextRequest
-): Promise<NextResponse<CommentsApiResponseWithAggregation> | null> {
+): Promise<SupabaseAuthResult> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -180,25 +206,33 @@ async function validateSupabaseSession(
     supabaseUrl.includes('your-project') ||
     supabaseAnonKey.includes('your-anon-key')
   ) {
-    return null;
+    return { ok: true, context: null };
   }
 
   const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
 
   if (!token) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: FigmaErrorCode.ACCESS_DENIED,
-          message: '로그인이 필요합니다.',
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: FigmaErrorCode.ACCESS_DENIED,
+            message: '로그인이 필요합니다.',
+          },
         },
-      },
-      { status: 401 }
-    );
+        { status: 401 }
+      ),
+    };
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -208,17 +242,80 @@ async function validateSupabaseSession(
   const { data, error } = await supabase.auth.getUser(token);
 
   if (error || !data.user) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: {
-          code: FigmaErrorCode.ACCESS_DENIED,
-          message: '로그인 세션을 확인할 수 없습니다.',
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: FigmaErrorCode.ACCESS_DENIED,
+            message: '로그인 세션을 확인할 수 없습니다.',
+          },
         },
-      },
-      { status: 401 }
-    );
+        { status: 401 }
+      ),
+    };
   }
 
-  return null;
+  return {
+    ok: true,
+    context: {
+      userId: data.user.id,
+      supabase,
+    },
+  };
+}
+
+async function saveCommentRun({
+  authContext,
+  parsedUrl,
+  figmaUrl,
+  fileInfo,
+  comments,
+  totalCount,
+  resolvedCount,
+  unresolvedCount,
+}: {
+  authContext: SupabaseAuthContext | null;
+  parsedUrl: ParsedFigmaUrl;
+  figmaUrl: string;
+  fileInfo: FigmaFileResponse;
+  comments: CommentThread[];
+  totalCount: number;
+  resolvedCount: number;
+  unresolvedCount: number;
+}): Promise<string | null> {
+  if (!authContext) {
+    return null;
+  }
+
+  const categoryCounts = comments.reduce<Record<string, number>>((counts, comment) => {
+    const category = comment.category ?? 'other';
+    counts[category] = (counts[category] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  const { data, error } = await authContext.supabase
+    .from('figma_comment_runs')
+    .insert({
+      user_id: authContext.userId,
+      figma_file_key: parsedUrl.fileKey,
+      figma_file_name: fileInfo.name,
+      figma_url: figmaUrl,
+      figma_node_id: parsedUrl.nodeId ?? null,
+      total_count: totalCount,
+      resolved_count: resolvedCount,
+      unresolved_count: unresolvedCount,
+      category_counts: categoryCounts,
+      raw_comments: comments,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('Failed to save Figma comment run:', error.message);
+    return null;
+  }
+
+  return data?.id ?? null;
 }

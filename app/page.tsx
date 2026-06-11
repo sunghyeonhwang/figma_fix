@@ -19,6 +19,7 @@ interface AnalysisResult {
   resolvedCount: number;
   unresolvedCount: number;
   aggregation?: CommentAggregation;
+  runId?: string | null;
 }
 
 export default function Home() {
@@ -100,6 +101,7 @@ function CommentReaderApp({ session }: { session: Session }) {
             resolvedCount={result.resolvedCount}
             unresolvedCount={result.unresolvedCount}
             aggregation={result.aggregation}
+            runId={result.runId}
             onBack={handleBack}
           />
         </div>

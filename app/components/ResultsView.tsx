@@ -7,6 +7,7 @@ import { StatsDashboard } from "./StatsDashboard";
 import { exportToExcel } from "../lib/utils/excel-export";
 import { COMMENT_CATEGORIES } from "../lib/utils/comment-classification";
 import { downloadMarkdownReport } from "../lib/utils/markdown-export";
+import { createSupabaseBrowserClient } from "../lib/supabase/client";
 
 interface FileInfo {
   name: string;
@@ -23,6 +24,7 @@ interface ResultsViewProps {
   resolvedCount: number;
   unresolvedCount: number;
   aggregation?: CommentAggregation;
+  runId?: string | null;
   onBack: () => void;
 }
 
@@ -33,6 +35,7 @@ export function ResultsView({
   resolvedCount,
   unresolvedCount,
   aggregation,
+  runId,
   onBack,
 }: ResultsViewProps) {
   const [isExporting, setIsExporting] = useState(false);
@@ -55,7 +58,7 @@ export function ResultsView({
     }
   };
 
-  const handleMarkdownExport = () => {
+  const handleMarkdownExport = async () => {
     downloadMarkdownReport({
       fileInfo,
       comments,
@@ -63,6 +66,29 @@ export function ResultsView({
       categoryFilter: markdownCategory,
       includeResolved: includeResolvedInMarkdown,
     });
+
+    if (!runId) return;
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data } = supabase ? await supabase.auth.getSession() : { data: null };
+      const userId = data?.session?.user.id;
+
+      if (!supabase || !userId) return;
+
+      const { error } = await supabase.from("markdown_exports").insert({
+        user_id: userId,
+        run_id: runId,
+        category: markdownCategory === "all" ? null : markdownCategory,
+        include_resolved: includeResolvedInMarkdown,
+      });
+
+      if (error) {
+        console.error("Failed to record markdown export:", error.message);
+      }
+    } catch (error) {
+      console.error("Failed to record markdown export:", error);
+    }
   };
 
   const formatDate = (dateString: string) => {
