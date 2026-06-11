@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "env:push": "node scripts/push-vercel-env.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
