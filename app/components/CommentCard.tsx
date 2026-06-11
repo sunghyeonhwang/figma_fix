@@ -49,21 +49,22 @@ export function CommentCard({ comment, isReply = false }: CommentCardProps) {
         <div className="flex items-start gap-3">
           {/* Avatar */}
           <div className="relative flex-shrink-0">
-            <img
-              src={comment.author.avatarUrl}
-              alt={comment.author.name}
-              className={`rounded-full ring-2 ring-white dark:ring-zinc-800 ${
-                isReply ? "h-7 w-7" : "h-10 w-10"
-              }`}
-              onError={(e) => {
-                // Fallback to initials if image fails to load
-                const target = e.target as HTMLImageElement;
-                target.style.display = "none";
-                target.nextElementSibling?.classList.remove("hidden");
-              }}
-            />
+            {comment.author.avatarUrl ? (
+              <img
+                src={comment.author.avatarUrl}
+                alt={comment.author.name}
+                className={`rounded-full ring-2 ring-white dark:ring-zinc-800 ${
+                  isReply ? "h-7 w-7" : "h-10 w-10"
+                }`}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                  target.nextElementSibling?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
             <div
-              className={`hidden items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white font-medium ${
+              className={`${comment.author.avatarUrl ? "hidden" : "flex"} items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-white font-medium ${
                 isReply ? "h-7 w-7 text-xs" : "h-10 w-10 text-sm"
               }`}
             >
