@@ -30,7 +30,7 @@ if (missing.length > 0) {
 }
 
 for (const key of keys) {
-  const value = env[key];
+  const value = env[key]?.trim();
   if (!value) continue;
 
   const result = spawnSync("vercel", ["env", "add", key, target], {

@@ -12,10 +12,10 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), []);
   const hasSupabaseConfig = !!getSupabaseConfig();
-  const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === "true";
+  const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED?.trim() === "true";
   const allowedEmailDomain = getAllowedEmailDomain();
   const authRedirectUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     (typeof window !== "undefined" ? window.location.origin : "");
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
