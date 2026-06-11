@@ -39,6 +39,7 @@ Supabase 없이 UI만 확인하려면 `http://localhost:3000/test-demo`를 사�
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_SITE_URL=https://figma-comment-reader.vercel.app
 NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false
 NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=griff.co.kr
 FIGMA_ACCESS_TOKEN=figd_optional_server_token
@@ -52,7 +53,7 @@ Google provider를 Supabase에서 켜기 전에는 `NEXT_PUBLIC_AUTH_GOOGLE_ENAB
 
 1. Supabase 프로젝트를 생성합니다.
 2. Authentication에서 Email provider를 활성화합니다.
-3. Site URL을 배포 URL로 설정합니다.
+3. Site URL을 `https://figma-comment-reader.vercel.app`로 설정합니다.
 4. Redirect URL에 로컬/배포 주소를 추가합니다.
    - `http://localhost:3000`
    - `https://your-vercel-domain.vercel.app`
@@ -73,6 +74,18 @@ Google provider를 Supabase에서 켜기 전에는 `NEXT_PUBLIC_AUTH_GOOGLE_ENAB
 
 Google 설정 전에는 이메일 매직 링크 로그인을 사용합니다.
 Google provider가 켜져 있어도 앱/API는 `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` 값과 일치하는 이메일만 허용합니다.
+
+## Magic Link가 localhost로 가는 경우
+
+Supabase Dashboard → Authentication → URL Configuration에서 아래처럼 맞춥니다.
+
+- Site URL: `https://figma-comment-reader.vercel.app`
+- Redirect URLs:
+  - `https://figma-comment-reader.vercel.app`
+  - `https://figma-comment-reader.vercel.app/**`
+  - `http://localhost:3000` only for local testing
+
+앱은 `NEXT_PUBLIC_SITE_URL`을 magic link와 Google OAuth redirect URL로 사용합니다.
 
 ## Vercel 환경변수 등록
 

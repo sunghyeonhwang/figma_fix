@@ -14,6 +14,9 @@ export function AuthGate({ children }: AuthGateProps) {
   const hasSupabaseConfig = !!getSupabaseConfig();
   const isGoogleEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED === "true";
   const allowedEmailDomain = getAllowedEmailDomain();
+  const authRedirectUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function AuthGate({ children }: AuthGateProps) {
     const { error: signInError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: authRedirectUrl,
       },
     });
 
@@ -80,7 +83,7 @@ export function AuthGate({ children }: AuthGateProps) {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: authRedirectUrl,
       },
     });
   };
@@ -253,7 +256,9 @@ function SupabaseSetupRequired() {
             <pre className="mt-3 overflow-x-auto rounded-xl bg-stone-950 p-4 text-xs leading-6 text-stone-100">
 {`NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_SITE_URL=https://figma-comment-reader.vercel.app
 NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=false
+NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=griff.co.kr
 FIGMA_ACCESS_TOKEN=figd_optional_server_token`}
             </pre>
             <p className="mt-3 text-xs leading-5 text-stone-500 dark:text-zinc-400">
