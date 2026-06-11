@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createFigmaApiService, getFigmaAccessToken, FigmaApiError } from '@/app/lib/services/figma-api';
 import { parseFigmaUrl, isValidFigmaUrl } from '@/app/lib/utils/figma-url';
 import { aggregateComments } from '@/app/lib/utils/comment-aggregation';
+import { classifyCommentThreads } from '@/app/lib/utils/comment-classification';
 import { CommentsApiResponseWithAggregation, FigmaErrorCode } from '@/app/lib/types/figma';
 
 /**
@@ -16,6 +18,11 @@ import { CommentsApiResponseWithAggregation, FigmaErrorCode } from '@/app/lib/ty
  */
 export async function POST(request: NextRequest): Promise<NextResponse<CommentsApiResponseWithAggregation>> {
   try {
+    const authError = await validateSupabaseSession(request);
+    if (authError) {
+      return authError;
+    }
+
     // Parse request body
     const body = await request.json();
     const { url, accessToken: clientToken } = body;
@@ -81,9 +88,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
     // Create Figma API service and fetch comments
     const figmaService = createFigmaApiService(accessToken);
     const result = await figmaService.getCommentsWithFileInfo(parsedUrl.fileKey);
+    const classifiedThreads = classifyCommentThreads(result.threads);
 
     // Generate aggregated statistics
-    const aggregation = aggregateComments(result.threads);
+    const aggregation = aggregateComments(classifiedThreads);
 
     // Return successful response with aggregation data
     return NextResponse.json({
@@ -92,9 +100,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<CommentsA
         fileInfo: {
           name: result.fileInfo.name,
           key: parsedUrl.fileKey,
+          url,
+          nodeId: parsedUrl.nodeId,
           lastModified: result.fileInfo.lastModified,
         },
-        comments: result.threads,
+        comments: classifiedThreads,
         totalCount: result.stats.total,
         resolvedCount: result.stats.resolved,
         unresolvedCount: result.stats.unresolved,
@@ -156,4 +166,59 @@ export async function GET(): Promise<NextResponse> {
     },
     documentation: 'https://www.figma.com/developers/api#comments',
   });
+}
+
+async function validateSupabaseSession(
+  request: NextRequest
+): Promise<NextResponse<CommentsApiResponseWithAggregation> | null> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (
+    !supabaseUrl ||
+    !supabaseAnonKey ||
+    supabaseUrl.includes('your-project') ||
+    supabaseAnonKey.includes('your-anon-key')
+  ) {
+    return null;
+  }
+
+  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (!token) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: FigmaErrorCode.ACCESS_DENIED,
+          message: '로그인이 필요합니다.',
+        },
+      },
+      { status: 401 }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  if (error || !data.user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: FigmaErrorCode.ACCESS_DENIED,
+          message: '로그인 세션을 확인할 수 없습니다.',
+        },
+      },
+      { status: 401 }
+    );
+  }
+
+  return null;
 }

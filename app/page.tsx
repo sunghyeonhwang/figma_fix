@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { CommentsApiResponseWithAggregation, CommentThread, CommentAggregation } from "./lib/types/figma";
-import { ResultsView, SettingsMenu } from "./components";
+import { AuthGate, ResultsView, SettingsMenu } from "./components";
 import { useTokenStorage } from "./lib/hooks/useTokenStorage";
 
 interface AnalysisResult {
   fileInfo: {
     name: string;
     key: string;
+    url?: string;
+    nodeId?: string;
     lastModified: string;
   };
   comments: CommentThread[];
@@ -19,6 +22,14 @@ interface AnalysisResult {
 }
 
 export default function Home() {
+  return (
+    <AuthGate>
+      {(session) => <CommentReaderApp session={session} />}
+    </AuthGate>
+  );
+}
+
+function CommentReaderApp({ session }: { session: Session }) {
   const [figmaLink, setFigmaLink] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -49,6 +60,7 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           url: figmaLink,

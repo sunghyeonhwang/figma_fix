@@ -320,7 +320,7 @@ function DailyTrendChart({ data, maxCount, formatDate }: DailyTrendChartProps) {
     <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/50">
       {/* Chart Container */}
       <div className="flex h-40 items-end gap-1.5">
-        {displayData.map((day, index) => {
+        {displayData.map((day) => {
           const height = (day.count / maxCount) * 100;
           const resolvedHeight = (day.resolvedCount / maxCount) * 100;
           const isToday =

@@ -24,10 +24,12 @@ export function SettingsMenu({
 
   // Initialize token input when menu opens
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    queueMicrotask(() => {
       setTokenInput(savedToken);
       setSaveSuccess(false);
-    }
+    });
   }, [isOpen, savedToken]);
 
   // Handle click outside to close

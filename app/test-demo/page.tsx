@@ -3,6 +3,7 @@
 import { ResultsView } from "../components";
 import { CommentThread, CommentAggregation } from "../lib/types/figma";
 import { aggregateComments } from "../lib/utils/comment-aggregation";
+import { classifyCommentThreads } from "../lib/utils/comment-classification";
 
 // Mock comments data with different dates
 const mockComments: CommentThread[] = [
@@ -105,19 +106,20 @@ const mockFileInfo = {
 };
 
 export default function TestDemoPage() {
-  const totalCount = mockComments.length;
-  const resolvedCount = mockComments.filter((c) => c.isResolved).length;
+  const classifiedComments = classifyCommentThreads(mockComments);
+  const totalCount = classifiedComments.length;
+  const resolvedCount = classifiedComments.filter((c) => c.isResolved).length;
   const unresolvedCount = totalCount - resolvedCount;
 
   // Generate aggregation data from mock comments
-  const aggregation: CommentAggregation = aggregateComments(mockComments);
+  const aggregation: CommentAggregation = aggregateComments(classifiedComments);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-zinc-100 px-4 py-8 font-sans dark:from-zinc-950 dark:to-black">
       <div className="mx-auto flex justify-center">
         <ResultsView
           fileInfo={mockFileInfo}
-          comments={mockComments}
+          comments={classifiedComments}
           totalCount={totalCount}
           resolvedCount={resolvedCount}
           unresolvedCount={unresolvedCount}

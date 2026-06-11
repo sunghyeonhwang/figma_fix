@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { CommentThread, CommentAggregation } from "../lib/types/figma";
+import { CommentThread, CommentAggregation, CommentCategoryId } from "../lib/types/figma";
 import { CommentsList } from "./CommentsList";
 import { StatsDashboard } from "./StatsDashboard";
 import { exportToExcel } from "../lib/utils/excel-export";
+import { COMMENT_CATEGORIES } from "../lib/utils/comment-classification";
+import { downloadMarkdownReport } from "../lib/utils/markdown-export";
 
 interface FileInfo {
   name: string;
   key: string;
+  url?: string;
+  nodeId?: string;
   lastModified: string;
 }
 
@@ -32,6 +36,8 @@ export function ResultsView({
   onBack,
 }: ResultsViewProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const [markdownCategory, setMarkdownCategory] = useState<CommentCategoryId | "all">("all");
+  const [includeResolvedInMarkdown, setIncludeResolvedInMarkdown] = useState(true);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -49,6 +55,16 @@ export function ResultsView({
     }
   };
 
+  const handleMarkdownExport = () => {
+    downloadMarkdownReport({
+      fileInfo,
+      comments,
+      aggregation,
+      categoryFilter: markdownCategory,
+      includeResolved: includeResolvedInMarkdown,
+    });
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("ko-KR", {
       year: "numeric",
@@ -61,11 +77,15 @@ export function ResultsView({
 
   const resolutionRate =
     totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 0;
+  const categoryCounts = COMMENT_CATEGORIES.map((category) => ({
+    ...category,
+    count: comments.filter((comment) => comment.category === category.id).length,
+  })).filter((category) => category.count > 0);
 
   return (
     <div className="w-full max-w-3xl">
       {/* Header with Back Button and Export Button */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <button
           onClick={onBack}
           className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-zinc-600 transition-all hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white"
@@ -86,54 +106,62 @@ export function ResultsView({
           다른 파일 분석하기
         </button>
 
-        {/* Excel Export Button */}
-        <button
-          onClick={handleExport}
-          disabled={isExporting || comments.length === 0}
-          className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-2 text-sm font-medium text-white shadow-md shadow-green-500/20 transition-all hover:from-green-600 hover:to-emerald-600 hover:shadow-lg hover:shadow-green-500/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
-        >
-          {isExporting ? (
-            <>
-              <svg
-                className="h-4 w-4 animate-spin"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              내보내는 중...
-            </>
-          ) : (
-            <>
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              엑셀 다운로드
-            </>
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={markdownCategory}
+            onChange={(event) =>
+              setMarkdownCategory(event.target.value as CommentCategoryId | "all")
+            }
+            className="h-10 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+            aria-label="Markdown 분류 선택"
+          >
+            <option value="all">전체 분류</option>
+            {COMMENT_CATEGORIES.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+
+          <label className="flex h-10 items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+            <input
+              type="checkbox"
+              checked={includeResolvedInMarkdown}
+              onChange={(event) => setIncludeResolvedInMarkdown(event.target.checked)}
+              className="h-4 w-4 accent-teal-600"
+            />
+            해결 포함
+          </label>
+
+          <button
+            onClick={handleMarkdownExport}
+            disabled={comments.length === 0}
+            className="flex h-10 items-center gap-2 rounded-lg bg-zinc-950 px-4 text-sm font-medium text-white shadow-md transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h6l5 5v11a2 2 0 01-2 2z"
+              />
+            </svg>
+            MD 다운로드
+          </button>
+
+          <button
+            onClick={handleExport}
+            disabled={isExporting || comments.length === 0}
+            className="flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white shadow-md shadow-emerald-500/20 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          >
+            {isExporting ? "내보내는 중..." : "엑셀"}
+          </button>
+        </div>
       </div>
 
       {/* File Info Header */}
@@ -275,6 +303,23 @@ export function ResultsView({
             />
           </div>
         </div>
+
+        {categoryCounts.length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {categoryCounts.map((category) => (
+              <span
+                key={category.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                title={category.description}
+              >
+                {category.label}
+                <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                  {category.count}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Statistics Dashboard */}

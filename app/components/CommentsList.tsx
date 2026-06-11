@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CommentThread } from "../lib/types/figma";
+import { CommentCategoryId, CommentThread } from "../lib/types/figma";
 import { CommentCard } from "./CommentCard";
 import { DateRange, DateRangePicker } from "./DateRangePicker";
+import { COMMENT_CATEGORIES, getCategoryDefinition } from "../lib/utils/comment-classification";
 
 interface CommentsListProps {
   comments: CommentThread[];
@@ -11,6 +12,7 @@ interface CommentsListProps {
 
 type FilterType = "all" | "resolved" | "unresolved";
 type SortType = "newest" | "oldest";
+type CategoryFilterType = CommentCategoryId | "all";
 
 interface GroupedComments {
   date: string;
@@ -21,6 +23,7 @@ interface GroupedComments {
 export function CommentsList({ comments }: CommentsListProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("newest");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilterType>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({
     startDate: null,
@@ -36,6 +39,11 @@ export function CommentsList({ comments }: CommentsListProps) {
       result = result.filter((c) => c.isResolved);
     } else if (filter === "unresolved") {
       result = result.filter((c) => !c.isResolved);
+    }
+
+    // Apply category filter
+    if (categoryFilter !== "all") {
+      result = result.filter((c) => c.category === categoryFilter);
     }
 
     // Apply date range filter
@@ -66,6 +74,7 @@ export function CommentsList({ comments }: CommentsListProps) {
         (c) =>
           c.message.toLowerCase().includes(query) ||
           c.author.name.toLowerCase().includes(query) ||
+          getCategoryDefinition(c.category).label.toLowerCase().includes(query) ||
           c.replies.some(
             (r) =>
               r.message.toLowerCase().includes(query) ||
@@ -82,7 +91,7 @@ export function CommentsList({ comments }: CommentsListProps) {
     });
 
     return result;
-  }, [comments, filter, sort, searchQuery, dateRange]);
+  }, [comments, filter, categoryFilter, sort, searchQuery, dateRange]);
 
   // Group comments by date
   const groupedComments = useMemo((): GroupedComments[] => {
@@ -120,6 +129,13 @@ export function CommentsList({ comments }: CommentsListProps) {
       resolved: comments.filter((c) => c.isResolved).length,
       unresolved: comments.filter((c) => !c.isResolved).length,
     };
+  }, [comments]);
+
+  const categoryCounts = useMemo(() => {
+    return COMMENT_CATEGORIES.map((category) => ({
+      ...category,
+      count: comments.filter((comment) => comment.category === category.id).length,
+    }));
   }, [comments]);
 
   return (
@@ -224,10 +240,28 @@ export function CommentsList({ comments }: CommentsListProps) {
             </div>
           </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            분류
+          </span>
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value as CategoryFilterType)}
+            className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+          >
+            <option value="all">전체 분류</option>
+            {categoryCounts.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.label} ({category.count})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Results Summary */}
-      {(searchQuery || dateRange.startDate || dateRange.endDate) && (
+      {(searchQuery || dateRange.startDate || dateRange.endDate || categoryFilter !== "all") && (
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
           <svg
             className="h-4 w-4"
@@ -246,6 +280,12 @@ export function CommentsList({ comments }: CommentsListProps) {
             {searchQuery && (
               <>
                 &quot;{searchQuery}&quot;
+                {(dateRange.startDate || dateRange.endDate || categoryFilter !== "all") && " · "}
+              </>
+            )}
+            {categoryFilter !== "all" && (
+              <>
+                {getCategoryDefinition(categoryFilter).label}
                 {(dateRange.startDate || dateRange.endDate) && " · "}
               </>
             )}
@@ -314,8 +354,10 @@ export function CommentsList({ comments }: CommentsListProps) {
           filter={filter}
           searchQuery={searchQuery}
           dateRange={dateRange}
+          categoryFilter={categoryFilter}
           onClearSearch={() => setSearchQuery("")}
           onClearFilter={() => setFilter("all")}
+          onClearCategory={() => setCategoryFilter("all")}
           onClearDateRange={() => setDateRange({ startDate: null, endDate: null })}
         />
       )}
@@ -376,8 +418,10 @@ interface EmptyStateProps {
   filter: FilterType;
   searchQuery: string;
   dateRange: DateRange;
+  categoryFilter: CategoryFilterType;
   onClearSearch: () => void;
   onClearFilter: () => void;
+  onClearCategory: () => void;
   onClearDateRange: () => void;
 }
 
@@ -385,8 +429,10 @@ function EmptyState({
   filter,
   searchQuery,
   dateRange,
+  categoryFilter,
   onClearSearch,
   onClearFilter,
+  onClearCategory,
   onClearDateRange,
 }: EmptyStateProps) {
   const hasDateFilter = dateRange.startDate || dateRange.endDate;
@@ -397,6 +443,9 @@ function EmptyState({
     }
     if (hasDateFilter) {
       return "선택한 기간에 댓글이 없습니다.";
+    }
+    if (categoryFilter !== "all") {
+      return `${getCategoryDefinition(categoryFilter).label} 분류의 댓글이 없습니다.`;
     }
     switch (filter) {
       case "resolved":
@@ -428,7 +477,7 @@ function EmptyState({
       <p className="mb-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
         {getMessage()}
       </p>
-      {(searchQuery || filter !== "all" || hasDateFilter) && (
+      {(searchQuery || filter !== "all" || categoryFilter !== "all" || hasDateFilter) && (
         <div className="flex flex-wrap justify-center gap-2">
           {searchQuery && (
             <button
@@ -452,6 +501,14 @@ function EmptyState({
               className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               필터 초기화
+            </button>
+          )}
+          {categoryFilter !== "all" && (
+            <button
+              onClick={onClearCategory}
+              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-all hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+            >
+              분류 초기화
             </button>
           )}
         </div>

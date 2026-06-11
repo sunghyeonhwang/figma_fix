@@ -27,13 +27,13 @@ export interface FigmaComment {
   id: string;
   uuid?: string;
   file_key: string;
-  parent_id: string;
+  parent_id?: string | null;
   user: FigmaUser;
   created_at: string;
   resolved_at: string | null;
   message: string;
   client_meta: FigmaClientMeta | null;
-  order_id: string;
+  order_id?: number | string | null;
 }
 
 // Response from Figma GET /v1/files/:file_key/comments
@@ -67,13 +67,15 @@ export interface ParsedFigmaUrl {
 // API Response types for our backend
 export interface CommentThread {
   id: string;
-  parentId: string;
+  orderId?: number | string | null;
+  parentId: string | null;
   author: {
     id: string;
     name: string;
     avatarUrl: string;
   };
   message: string;
+  messageMd?: string;
   createdAt: string;
   resolvedAt: string | null;
   isResolved: boolean;
@@ -82,7 +84,28 @@ export interface CommentThread {
     y?: number;
     nodeId?: string;
   } | null;
+  category?: CommentCategoryId;
+  categoryLabel?: string;
+  categoryConfidence?: number;
+  categoryReasons?: string[];
   replies: CommentThread[];
+}
+
+export type CommentCategoryId =
+  | 'typo'
+  | 'spacing'
+  | 'copy'
+  | 'function_error'
+  | 'change_request'
+  | 'design_ui'
+  | 'link_button'
+  | 'schedule_info'
+  | 'other';
+
+export interface CommentCategoryDefinition {
+  id: CommentCategoryId;
+  label: string;
+  description: string;
 }
 
 export interface CommentsApiResponse {
@@ -91,6 +114,8 @@ export interface CommentsApiResponse {
     fileInfo: {
       name: string;
       key: string;
+      url?: string;
+      nodeId?: string;
       lastModified: string;
     };
     comments: CommentThread[];

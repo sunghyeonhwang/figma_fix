@@ -10,15 +10,17 @@ export function useTokenStorage() {
 
   // Load token from localStorage on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setSavedToken(stored);
+    queueMicrotask(() => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          setSavedToken(stored);
+        }
+      } catch (error) {
+        console.error("Error loading token from localStorage:", error);
       }
-    } catch (error) {
-      console.error("Error loading token from localStorage:", error);
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    });
   }, []);
 
   // Save token to localStorage

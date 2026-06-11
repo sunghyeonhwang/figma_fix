@@ -28,16 +28,17 @@ export function DateRangePicker({
 
   // Sync temp range with value when picker opens
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    queueMicrotask(() => {
       setTempRange(value);
       setSelecting(value.startDate && !value.endDate ? "end" : "start");
-      // Set current month to start date or today
       if (value.startDate) {
         setCurrentMonth(new Date(value.startDate));
       } else {
         setCurrentMonth(new Date());
       }
-    }
+    });
   }, [isOpen, value]);
 
   // Close on outside click
@@ -121,9 +122,9 @@ export function DateRangePicker({
     return date >= tempRange.startDate && date <= tempRange.endDate;
   };
 
-  const isDateSelected = (date: Date) => {
+  const isDateSelected = (date: Date): boolean => {
     const dateStr = date.toDateString();
-    return (
+    return !!(
       (tempRange.startDate && tempRange.startDate.toDateString() === dateStr) ||
       (tempRange.endDate && tempRange.endDate.toDateString() === dateStr)
     );

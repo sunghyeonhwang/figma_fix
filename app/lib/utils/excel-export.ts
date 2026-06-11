@@ -5,6 +5,7 @@
 
 import * as XLSX from 'xlsx';
 import { CommentThread, CommentAggregation } from '../types/figma';
+import { getCategoryDefinition } from './comment-classification';
 
 interface FileInfo {
   name: string;
@@ -23,9 +24,11 @@ interface ExportData {
  */
 function flattenCommentsForExport(threads: CommentThread[]): Array<{
   id: string;
+  orderId: string;
   date: string;
   time: string;
   author: string;
+  category: string;
   message: string;
   status: string;
   type: string;
@@ -34,9 +37,11 @@ function flattenCommentsForExport(threads: CommentThread[]): Array<{
 }> {
   const rows: Array<{
     id: string;
+    orderId: string;
     date: string;
     time: string;
     author: string;
+    category: string;
     message: string;
     status: string;
     type: string;
@@ -67,9 +72,11 @@ function flattenCommentsForExport(threads: CommentThread[]): Array<{
 
     rows.push({
       id: comment.id,
+      orderId: comment.orderId ? String(comment.orderId) : '',
       date: dateStr,
       time: timeStr,
       author: comment.author.name,
+      category: getCategoryDefinition(comment.category).label,
       message: comment.message,
       status: comment.isResolved ? '해결됨' : '미해결',
       type: isReply ? '답글' : '댓글',
@@ -97,12 +104,14 @@ function createCommentsSheet(comments: CommentThread[]): XLSX.WorkSheet {
   const rows = flattenCommentsForExport(comments);
 
   const data = [
-    ['ID', '날짜', '시간', '작성자', '내용', '상태', '유형', '답글 수', '위치'],
+    ['댓글 번호', 'ID', '날짜', '시간', '작성자', '분류', '내용', '상태', '유형', '답글 수', '위치'],
     ...rows.map(row => [
+      row.orderId,
       row.id,
       row.date,
       row.time,
       row.author,
+      row.category,
       row.message,
       row.status,
       row.type,
@@ -115,10 +124,12 @@ function createCommentsSheet(comments: CommentThread[]): XLSX.WorkSheet {
 
   // Set column widths
   ws['!cols'] = [
-    { wch: 15 },  // ID
+    { wch: 12 },  // Comment order
+    { wch: 20 },  // ID
     { wch: 12 },  // Date
     { wch: 8 },   // Time
     { wch: 15 },  // Author
+    { wch: 12 },  // Category
     { wch: 50 },  // Message
     { wch: 10 },  // Status
     { wch: 8 },   // Type

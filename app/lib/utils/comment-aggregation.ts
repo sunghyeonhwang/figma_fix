@@ -71,7 +71,7 @@ export function aggregateByAuthor(threads: CommentThread[]): AuthorStats[] {
 
   for (const comment of allComments) {
     const authorId = comment.author.id;
-    const isRootComment = comment.parentId === '';
+    const isRootComment = !comment.parentId;
     const isResolved = comment.isResolved;
 
     if (!authorMap.has(authorId)) {
@@ -130,7 +130,7 @@ export function aggregateByHour(threads: CommentThread[]): HourlyStats[] {
     hourStats[hour].count++;
 
     // Only count resolution status for root comments
-    if (comment.parentId === '') {
+    if (!comment.parentId) {
       if (comment.isResolved) {
         hourStats[hour].resolvedCount++;
       } else {
@@ -172,7 +172,7 @@ export function aggregateByDate(threads: CommentThread[]): DailyStats[] {
     }
 
     // Only count resolution status for root comments
-    if (comment.parentId === '') {
+    if (!comment.parentId) {
       if (comment.isResolved) {
         stats.resolvedCount++;
       } else {
@@ -214,7 +214,7 @@ export function aggregateByWeek(threads: CommentThread[]): WeeklyStats[] {
     stats.count++;
 
     // Only count resolution status for root comments
-    if (comment.parentId === '') {
+    if (!comment.parentId) {
       if (comment.isResolved) {
         stats.resolvedCount++;
       } else {

@@ -31,11 +31,15 @@ class FigmaApiService {
    */
   private async request<T>(endpoint: string): Promise<T> {
     const url = `${FIGMA_API_BASE}${endpoint}`;
+    const authHeaders: Record<string, string> =
+      this.accessToken.startsWith("figd_") || this.accessToken.startsWith("figpat-")
+        ? { "X-Figma-Token": this.accessToken }
+        : { Authorization: `Bearer ${this.accessToken}` };
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-Figma-Token': this.accessToken,
+        ...authHeaders,
         'Content-Type': 'application/json',
       },
     });
@@ -109,7 +113,7 @@ class FigmaApiService {
    * Fetches all comments for a Figma file
    */
   async getComments(fileKey: string): Promise<FigmaCommentsResponse> {
-    return this.request<FigmaCommentsResponse>(`/files/${fileKey}/comments`);
+    return this.request<FigmaCommentsResponse>(`/files/${fileKey}/comments?as_md=true`);
   }
 
   /**
@@ -124,7 +128,7 @@ class FigmaApiService {
     // First pass: categorize comments
     for (const comment of comments) {
       commentMap.set(comment.id, comment);
-      if (comment.parent_id === '') {
+      if (!comment.parent_id) {
         rootComments.push(comment);
       } else {
         childComments.push(comment);
@@ -134,13 +138,15 @@ class FigmaApiService {
     // Convert a FigmaComment to CommentThread
     const toCommentThread = (comment: FigmaComment): CommentThread => ({
       id: comment.id,
-      parentId: comment.parent_id,
+      orderId: comment.order_id,
+      parentId: comment.parent_id || null,
       author: {
         id: comment.user.id,
         name: comment.user.handle,
         avatarUrl: comment.user.img_url,
       },
       message: comment.message,
+      messageMd: comment.message,
       createdAt: comment.created_at,
       resolvedAt: comment.resolved_at,
       isResolved: comment.resolved_at !== null,
@@ -172,6 +178,7 @@ class FigmaApiService {
     );
 
     for (const childComment of childComments) {
+      if (!childComment.parent_id) continue;
       const parentThread = threadMap.get(childComment.parent_id);
       if (parentThread) {
         const childThread = toCommentThread(childComment);

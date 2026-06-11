@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CommentThread } from "../lib/types/figma";
+import { getCategoryDefinition } from "../lib/utils/comment-classification";
 
 interface CommentCardProps {
   comment: CommentThread;
@@ -29,6 +30,7 @@ export function CommentCard({ comment, isReply = false }: CommentCardProps) {
   };
 
   const hasReplies = comment.replies && comment.replies.length > 0;
+  const category = getCategoryDefinition(comment.category);
 
   return (
     <div
@@ -95,6 +97,16 @@ export function CommentCard({ comment, isReply = false }: CommentCardProps) {
               >
                 {formatTime(comment.createdAt)}
               </span>
+              {!isReply && comment.orderId && (
+                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+                  #{comment.orderId}
+                </span>
+              )}
+              {!isReply && (
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getCategoryClasses(comment.category)}`}>
+                  {category.label}
+                </span>
+              )}
               {comment.isResolved && !isReply && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/50 dark:text-green-400">
                   <svg
@@ -207,4 +219,27 @@ export function CommentCard({ comment, isReply = false }: CommentCardProps) {
       </div>
     </div>
   );
+}
+
+function getCategoryClasses(categoryId: CommentThread["category"]) {
+  switch (categoryId) {
+    case "typo":
+      return "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300";
+    case "spacing":
+      return "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300";
+    case "copy":
+      return "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300";
+    case "function_error":
+      return "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300";
+    case "change_request":
+      return "bg-teal-100 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300";
+    case "design_ui":
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300";
+    case "link_button":
+      return "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300";
+    case "schedule_info":
+      return "bg-lime-100 text-lime-700 dark:bg-lime-950/50 dark:text-lime-300";
+    default:
+      return "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
+  }
 }
