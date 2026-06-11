@@ -307,14 +307,14 @@ export function CommentsList({ comments }: CommentsListProps) {
 
             <div className="flex items-center gap-2">
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                보기:
+                그룹:
               </span>
               <select
                 value={groupMode}
                 onChange={(e) => setGroupMode(e.target.value as GroupMode)}
                 className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               >
-                <option value="page">페이지별</option>
+                <option value="page">Figma 페이지별</option>
                 <option value="date">날짜별</option>
               </select>
             </div>

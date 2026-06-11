@@ -108,6 +108,14 @@ class FigmaApiService {
   }
 
   /**
+   * Fetches the full Figma document tree. Used as a fallback when the targeted
+   * node lookup does not include enough ancestor information to identify pages.
+   */
+  async getFullFileInfo(fileKey: string): Promise<FigmaFileResponse> {
+    return this.request<FigmaFileResponse>(`/files/${fileKey}`);
+  }
+
+  /**
    * Fetches a subset of a Figma file around specific node ids.
    */
   async getFileNodeAncestors(fileKey: string, nodeIds: string[]): Promise<FigmaFileResponse[]> {
@@ -148,6 +156,17 @@ class FigmaApiService {
 
     for (const response of responses) {
       mergePageLookup(response.document, pageByNodeId, pageOrderById);
+    }
+
+    const unresolvedNodeIds = nodeIds.filter((nodeId) => !getPageForNodeId(pageByNodeId, nodeId));
+
+    if (unresolvedNodeIds.length > 0) {
+      try {
+        const fullFile = await this.getFullFileInfo(fileKey);
+        mergePageLookup(fullFile.document, pageByNodeId, getTopLevelPageOrder(fullFile.document));
+      } catch (error) {
+        console.warn('Failed to load full Figma document for page lookup:', error);
+      }
     }
 
     return pageByNodeId;
