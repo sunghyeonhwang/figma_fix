@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CommentThread, CommentAggregation, CommentCategoryId } from "../lib/types/figma";
 import { CommentsList } from "./CommentsList";
 import { StatsDashboard } from "./StatsDashboard";
@@ -41,6 +41,23 @@ export function ResultsView({
   const [isExporting, setIsExporting] = useState(false);
   const [markdownCategory, setMarkdownCategory] = useState<CommentCategoryId | "all">("all");
   const [includeResolvedInMarkdown, setIncludeResolvedInMarkdown] = useState(true);
+  const [visibleComments, setVisibleComments] = useState<CommentThread[]>(comments);
+
+  useEffect(() => {
+    setVisibleComments(comments);
+  }, [comments]);
+
+  const handleVisibleCommentsChange = useCallback((nextVisibleComments: CommentThread[]) => {
+    setVisibleComments(nextVisibleComments);
+  }, []);
+
+  const markdownComments = useMemo(() => {
+    return visibleComments.filter((comment) => {
+      const matchesCategory = markdownCategory === "all" || comment.category === markdownCategory;
+      const matchesResolved = includeResolvedInMarkdown || !comment.isResolved;
+      return matchesCategory && matchesResolved;
+    });
+  }, [includeResolvedInMarkdown, markdownCategory, visibleComments]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -61,10 +78,11 @@ export function ResultsView({
   const handleMarkdownExport = async () => {
     downloadMarkdownReport({
       fileInfo,
-      comments,
+      comments: visibleComments,
       aggregation,
       categoryFilter: markdownCategory,
       includeResolved: includeResolvedInMarkdown,
+      preserveOrder: true,
     });
 
     if (!runId) return;
@@ -161,7 +179,7 @@ export function ResultsView({
 
           <button
             onClick={handleMarkdownExport}
-            disabled={comments.length === 0}
+            disabled={markdownComments.length === 0}
             className="flex h-10 items-center gap-2 rounded-lg bg-zinc-950 px-4 text-sm font-medium text-white shadow-md transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
           >
             <svg
@@ -177,7 +195,7 @@ export function ResultsView({
                 d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h6l5 5v11a2 2 0 01-2 2z"
               />
             </svg>
-            MD 다운로드
+            현재 결과 MD
           </button>
 
           <button
@@ -375,7 +393,10 @@ export function ResultsView({
         </h2>
 
         {comments.length > 0 ? (
-          <CommentsList comments={comments} />
+          <CommentsList
+            comments={comments}
+            onVisibleCommentsChange={handleVisibleCommentsChange}
+          />
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">

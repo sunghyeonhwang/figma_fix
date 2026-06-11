@@ -15,6 +15,7 @@ interface MarkdownExportData {
   aggregation?: CommentAggregation;
   categoryFilter?: CommentCategoryId | "all";
   includeResolved?: boolean;
+  preserveOrder?: boolean;
 }
 
 function formatDateTime(value: string) {
@@ -99,6 +100,7 @@ export function generateMarkdownReport({
   aggregation,
   categoryFilter = "all",
   includeResolved = true,
+  preserveOrder = false,
 }: MarkdownExportData) {
   const filtered = comments.filter((comment) => {
     const matchesCategory = categoryFilter === "all" || comment.category === categoryFilter;
@@ -136,17 +138,27 @@ export function generateMarkdownReport({
     lines.push("- 내보낼 코멘트가 없습니다.");
   }
 
-  for (const category of COMMENT_CATEGORIES) {
-    const categoryComments = filtered.filter((comment) => comment.category === category.id);
-    if (categoryComments.length === 0) continue;
-
+  if (preserveOrder) {
     lines.push("");
-    lines.push(`## ${category.label}`);
+    lines.push("## 현재 정렬 결과");
     lines.push("");
 
-    categoryComments.forEach((comment, index) => {
+    filtered.forEach((comment, index) => {
       appendComment(lines, fileInfo, comment, index + 1);
     });
+  } else {
+    for (const category of COMMENT_CATEGORIES) {
+      const categoryComments = filtered.filter((comment) => comment.category === category.id);
+      if (categoryComments.length === 0) continue;
+
+      lines.push("");
+      lines.push(`## ${category.label}`);
+      lines.push("");
+
+      categoryComments.forEach((comment, index) => {
+        appendComment(lines, fileInfo, comment, index + 1);
+      });
+    }
   }
 
   return `${lines.join("\n").trim()}\n`;

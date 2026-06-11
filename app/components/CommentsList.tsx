@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CommentCategoryId, CommentThread } from "../lib/types/figma";
 import { CommentCard } from "./CommentCard";
 import { DateRange, DateRangePicker } from "./DateRangePicker";
@@ -8,6 +8,7 @@ import { COMMENT_CATEGORIES, getCategoryDefinition } from "../lib/utils/comment-
 
 interface CommentsListProps {
   comments: CommentThread[];
+  onVisibleCommentsChange?: (comments: CommentThread[]) => void;
 }
 
 type FilterType = "all" | "resolved" | "unresolved";
@@ -33,7 +34,7 @@ interface PageCount {
 
 const UNKNOWN_PAGE_ID = "__unknown_page__";
 
-export function CommentsList({ comments }: CommentsListProps) {
+export function CommentsList({ comments, onVisibleCommentsChange }: CommentsListProps) {
   const [filter, setFilter] = useState<FilterType>("all");
   const [sort, setSort] = useState<SortType>("newest");
   const [groupMode, setGroupMode] = useState<GroupMode>("page");
@@ -218,6 +219,15 @@ export function CommentsList({ comments }: CommentsListProps) {
       return a.name.localeCompare(b.name, "ko-KR");
     });
   }, [comments]);
+
+  const visibleComments = useMemo(
+    () => groupedComments.flatMap((group) => group.comments),
+    [groupedComments]
+  );
+
+  useEffect(() => {
+    onVisibleCommentsChange?.(visibleComments);
+  }, [onVisibleCommentsChange, visibleComments]);
 
   return (
     <div className="space-y-6">

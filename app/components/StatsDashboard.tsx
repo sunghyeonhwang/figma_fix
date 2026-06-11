@@ -14,7 +14,7 @@ interface StatsDashboardProps {
 }
 
 export function StatsDashboard({ aggregation }: StatsDashboardProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const { overview, byAuthor, byDate, byHour, timeRange } = aggregation;
 
@@ -102,12 +102,9 @@ export function StatsDashboard({ aggregation }: StatsDashboardProps) {
       </button>
 
       {/* Expandable Content */}
-      <div
-        className={`overflow-hidden transition-all duration-300 ${
-          isExpanded ? "max-h-[2000px] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <div className="space-y-6 border-t border-zinc-200 p-6 dark:border-zinc-700">
+      {isExpanded && (
+        <div className="overflow-hidden">
+          <div className="space-y-6 border-t border-zinc-200 p-6 dark:border-zinc-700">
           {/* Time Range Info */}
           {timeRange.spanDays > 0 && (
             <div className="rounded-xl bg-gradient-to-r from-zinc-50 to-zinc-100 p-4 dark:from-zinc-800/50 dark:to-zinc-800/30">
@@ -254,8 +251,9 @@ export function StatsDashboard({ aggregation }: StatsDashboardProps) {
               <TopAuthorsSection authors={topAuthors} />
             </div>
           )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
